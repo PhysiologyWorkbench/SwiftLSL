@@ -7,7 +7,9 @@ struct LSLTool: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "lsltool",
         abstract: "Development harness for SwiftLSL. stdout is NDJSON; stderr is diagnostics.",
-        subcommands: [EchoCommand.self, ResolveCommand.self, PullCommand.self]
+        subcommands: [
+            EchoCommand.self, ResolveCommand.self, PullCommand.self, InfoCommand.self,
+        ]
     )
 
     /// Argument-parsing failures and `--help` keep ArgumentParser's own stderr handling.

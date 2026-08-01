@@ -19,7 +19,7 @@ public enum StreamInfoXML {
         try decode(Data(xml.utf8))
     }
 
-    public static func decode(_ info: XMLElement) throws -> StreamInfo {
+    public static func decode(_ info: MetadataElement) throws -> StreamInfo {
         let name = info.childValue("name")
         guard !name.isEmpty else {
             throw LSLError.invalidStreamInfo("empty <name>")
@@ -106,7 +106,7 @@ public enum StreamInfoXML {
 
     // MARK: - Generic tree
 
-    public static func parseTree(_ xml: Data) throws -> XMLElement {
+    public static func parseTree(_ xml: Data) throws -> MetadataElement {
         let parser = XMLParser(data: xml)
         let builder = TreeBuilder()
         parser.delegate = builder
@@ -117,7 +117,7 @@ public enum StreamInfoXML {
         return root
     }
 
-    private static func render(_ element: XMLElement, indent: Int) -> [String] {
+    private static func render(_ element: MetadataElement, indent: Int) -> [String] {
         let pad = String(repeating: "\t", count: indent)
         if element.children.isEmpty {
             guard let value = element.value, !value.isEmpty else {
@@ -147,21 +147,21 @@ public enum StreamInfoXML {
         return escaped
     }
 
-    private static func nonNegativeInteger(_ info: XMLElement, _ field: String) throws -> Int {
+    private static func nonNegativeInteger(_ info: MetadataElement, _ field: String) throws -> Int {
         guard let value = Int(info.childValue(field)), value >= 0 else {
             throw LSLError.invalidStreamInfo("\(field) must be a non-negative integer")
         }
         return value
     }
 
-    private static func nonNegativeDouble(_ info: XMLElement, _ field: String) throws -> Double {
+    private static func nonNegativeDouble(_ info: MetadataElement, _ field: String) throws -> Double {
         guard let value = Double(info.childValue(field)), value >= 0 else {
             throw LSLError.invalidStreamInfo("\(field) must be a non-negative number")
         }
         return value
     }
 
-    private static func port(_ info: XMLElement, _ field: String) throws -> UInt16 {
+    private static func port(_ info: MetadataElement, _ field: String) throws -> UInt16 {
         let text = info.childValue(field)
         guard let value = Int(text), (0...65535).contains(value) else {
             throw LSLError.invalidStreamInfo("\(field) must be in 0...65535, got \(text)")
@@ -170,18 +170,18 @@ public enum StreamInfoXML {
     }
 }
 
-/// Builds an `XMLElement` tree from SAX events. Character data is kept verbatim for leaf
+/// Builds a `MetadataElement` tree from SAX events. Character data is kept verbatim for leaf
 /// elements and discarded for elements with children, where it is only the writer's
 /// indentation.
 private final class TreeBuilder: NSObject, XMLParserDelegate {
     private struct Frame {
         let name: String
         var text = ""
-        var children: [XMLElement] = []
+        var children: [MetadataElement] = []
     }
 
     private var stack: [Frame] = []
-    fileprivate var root: XMLElement?
+    fileprivate var root: MetadataElement?
     fileprivate var failure: String?
 
     func parser(
@@ -201,7 +201,7 @@ private final class TreeBuilder: NSObject, XMLParserDelegate {
         namespaceURI: String?, qualifiedName: String?
     ) {
         guard let frame = stack.popLast() else { return }
-        let element = XMLElement(
+        let element = MetadataElement(
             name: frame.name,
             value: frame.children.isEmpty ? frame.text : nil,
             children: frame.children

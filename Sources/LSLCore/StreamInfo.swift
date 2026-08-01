@@ -30,7 +30,7 @@ public struct StreamInfo: Sendable, Hashable {
     /// The `<desc>` subtree. Absent from a shortinfo reply; populated by
     /// `LSL:fullinfo` (SCOPE.md §2.4). Named `desc` rather than the sketch's
     /// `description`, which would silently satisfy `CustomStringConvertible`.
-    public var desc: XMLElement?
+    public var desc: MetadataElement?
 
     public init(
         name: String,
@@ -50,7 +50,7 @@ public struct StreamInfo: Sendable, Hashable {
         v6Address: String = "",
         v6DataPort: UInt16 = 0,
         v6ServicePort: UInt16 = 0,
-        desc: XMLElement? = nil
+        desc: MetadataElement? = nil
     ) {
         self.name = name
         self.type = type

@@ -661,11 +661,13 @@ consumer-side computation, not an inlet setting.
 
 | Sketch | As built | Why |
 |---|---|---|
-| `StreamInfo.description: XMLElement?` | `StreamInfo.desc` | A property named `description` silently satisfies `CustomStringConvertible`, changing what every `"\(info)"` prints. |
+| `StreamInfo.description: XMLElement?` | `StreamInfo.desc: MetadataElement?` | A property named `description` silently satisfies `CustomStringConvertible`, changing what every `"\(info)"` prints. |
 | `StreamInfo` has no transport fields | adds `v4Address`, `v4DataPort`, `v4ServicePort` and the `v6` triple | The inlet cannot connect without them, and `v4address` is the field the resolver fills in from the reply's source address (§2.1). The address fields are `var` for exactly that reason. |
 | — | `Sample` / `SampleRecord` split | A record off the wire may carry no timestamp (tag 1). Deduction needs the previous timestamp and the nominal rate, so it is a separate, testable step rather than a decoder side effect. |
 | — | `LSLError.incompleteRecord` | The sample decoder is driven from a growing buffer; this is how it asks for more bytes. It never escapes the transport. |
 | — | `HandshakeRequest.endianPerformance`, default 0 | See §2.2: the value is a policy choice, and 0 avoids benchmarking on every connect. |
+| `XMLElement` | `MetadataElement` | `Foundation.XMLElement` exists on macOS, so any consumer importing both modules would have to qualify every use. |
+| `InletConfiguration.maxBufferedSamples` | `InletConfiguration.maxBuffered: Duration` | The wire field is in samples but `liblsl`'s parameter is in seconds; see §2.2. Expressing it in samples invites a buffer three orders of magnitude too small. |
 
 ---
 

@@ -118,7 +118,7 @@ behaves as specified.
 
 ---
 
-## [ ] Step 5 — Metadata
+## [x] Step 5 — Metadata
 
 **Goal.** Full StreamInfo including the `<desc>` subtree.
 

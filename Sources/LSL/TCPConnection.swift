@@ -11,6 +11,7 @@ import Network
 final class TCPConnection: @unchecked Sendable {
     private let connection: NWConnection
     private let queue = DispatchQueue(label: "org.swiftlsl.tcp")
+    private let atEnd = Locked(false)
 
     init(host: String, port: UInt16) throws {
         guard let endpointPort = NWEndpoint.Port(rawValue: port) else {
@@ -94,15 +95,25 @@ final class TCPConnection: @unchecked Sendable {
     /// Reads whatever has arrived, blocking until at least one byte is available.
     /// Returns `nil` at end of stream.
     func receive(maximumLength: Int = 65536) async throws -> Data? {
-        try await withCheckedThrowingContinuation { continuation in
+        if atEnd.withLock({ $0 }) { return nil }
+        return try await withCheckedThrowingContinuation { continuation in
             connection.receive(minimumIncompleteLength: 1, maximumLength: maximumLength) {
-                data, _, isComplete, error in
-                if let error, !isComplete {
-                    continuation.resume(throwing: LSLError.lost("receive failed: \(error)"))
-                } else if let data, !data.isEmpty {
+                [atEnd] data, _, isComplete, error in
+                if isComplete { atEnd.withLock { $0 = true } }
+                if let data, !data.isEmpty {
                     continuation.resume(returning: data)
                 } else if isComplete {
                     continuation.resume(returning: nil)
+                } else if let error {
+                    // Network.framework can answer a receive issued against an
+                    // already-finished stream with ENODATA rather than a completion flag;
+                    // that is an end of stream, not a failure.
+                    if case .posix(let code) = error, code == .ENODATA {
+                        atEnd.withLock { $0 = true }
+                        continuation.resume(returning: nil)
+                    } else {
+                        continuation.resume(throwing: LSLError.lost("receive failed: \(error)"))
+                    }
                 } else {
                     continuation.resume(returning: Data())
                 }
@@ -113,6 +124,21 @@ final class TCPConnection: @unchecked Sendable {
     func close() {
         connection.stateUpdateHandler = nil
         connection.cancel()
+    }
+}
+
+/// A value guarded by a lock, for the little state shared with a Network.framework
+/// callback.
+final class Locked<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value
+
+    init(_ value: Value) { self.value = value }
+
+    func withLock<T>(_ body: (inout Value) -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&value)
     }
 }
 
