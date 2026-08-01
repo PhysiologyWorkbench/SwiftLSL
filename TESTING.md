@@ -1,6 +1,6 @@
 # Testing
 
-Testing strategy for swift-lsl. The `lsltool` output contract the harness relies on is
+Testing strategy for SwiftLSL. The `lsltool` output contract the harness relies on is
 specified in [ARCHITECTURE.md](ARCHITECTURE.md); which tests land at which step is in
 [ROADMAP.md](ROADMAP.md).
 

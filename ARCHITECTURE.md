@@ -1,6 +1,6 @@
 # Architecture
 
-Code organisation and design rules for swift-lsl. Wire-format details live in
+Code organisation and design rules for SwiftLSL. Wire-format details live in
 [SCOPE.md](SCOPE.md) §2 and are not repeated here; the public API shape is sketched in
 SCOPE.md §7. This file covers what SCOPE does not: how the code is arranged, the rules
 that keep it testable, and the harness contract that [TESTING.md](TESTING.md) builds on.
@@ -8,7 +8,7 @@ that keep it testable, and the harness contract that [TESTING.md](TESTING.md) bu
 ## Targets
 
 ```
-swift-lsl (this repository)
+SwiftLSL (this repository)
 ├── Package.swift                    // swift-tools-version 6.0; macOS 13, iOS 16
 ├── Sources/
 │   ├── LSLCore/                     // pure codecs — Foundation only, no I/O

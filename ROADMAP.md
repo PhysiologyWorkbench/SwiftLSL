@@ -1,6 +1,6 @@
 # Roadmap
 
-Implementation plan for swift-lsl. Each step is independently testable and lands only
+Implementation plan for SwiftLSL. Each step is independently testable and lands only
 with its exit criteria green. Protocol facts referenced below are specified in
 [SCOPE.md](SCOPE.md) §2; test levels (L0 Swift unit / L1 mock-peer / L2 liblsl
 interop) are defined in [TESTING.md](TESTING.md); target layout and the `lsltool`
