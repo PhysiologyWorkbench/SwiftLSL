@@ -46,10 +46,17 @@ struct RecordCommand: AsyncParsableCommand {
         let resolver = StreamResolver(configuration: resolverSettings)
         Emit.event("resolving", ["query": .string(query ?? "")])
 
-        let found = try await resolver.resolve(
-            query: query, minimum: 1, timeout: .seconds(resolveTimeout))
-        guard let target = found.first else {
-            throw ToolError("no stream matched \(query ?? "any query")")
+        let target: StreamInfo
+        do {
+            target = try await resolver.resolveFirst(
+                query: query, timeout: .seconds(resolveTimeout))
+        } catch LSLError.noStreamsFound(let access) {
+            // An empty resolve is ambiguous on Apple platforms, so the probed access state
+            // travels with the failure rather than being left to the reader (SCOPE.md §8.2).
+            Emit.error(
+                "no stream matched \(query ?? "any query")",
+                ["local_network_access": .string(String(describing: access))])
+            throw ExitCode(1)
         }
 
         var inletSettings = InletConfiguration()

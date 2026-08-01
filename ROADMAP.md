@@ -183,7 +183,7 @@ signatures in SCOPE §7 (deviations documented there).
 
 ---
 
-## [ ] Step 8 — Apple platform hardening
+## [x] Step 8 — Apple platform hardening
 
 **Goal.** Behave correctly under local-network privacy and on multi-homed hosts
 [SCOPE §8].
@@ -208,6 +208,15 @@ SCOPE §8.3): the checklist is the test artefact.
 **Exit criteria.** Multi-interface resolve green; checklist executed once with
 results recorded in it; iOS multicast entitlement *requested* (approval is external
 and does not block — `KnownPeers` mode needs none).
+
+**Carried forward.** Three parts of this step need hardware or an Apple account this
+build environment does not have, and are recorded rather than silently dropped:
+the two-subnet reachability case (`test_multi_homed_discovery_still_resolves` skips
+on a single-interface host); the manual prompt/denial/re-grant script, which needs a
+bundled, Apple-signed app on a fresh user account — its result table in
+[docs/PLATFORM-CHECKLIST.md](docs/PLATFORM-CHECKLIST.md) is written but unfilled; and
+the iOS multicast entitlement request. Case 3 of that table is also the outstanding
+half of SCOPE §12 item 1.
 
 ---
 

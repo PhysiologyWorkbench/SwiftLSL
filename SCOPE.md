@@ -672,6 +672,8 @@ consumer-side computation, not an inlet setting.
 | — | `StreamInlet.init(_:configuration:resolver:)` | Recovery is a re-resolve, so the inlet needs the resolver configuration the caller found the stream with — `KnownPeers` in particular, without which a recovery on a multicast-blocked network can never succeed. |
 | — | `StreamInlet.droppedSampleCount()` | A recorder must be able to say whether a gap in its file is real. Silently discarding overflow with no way to detect it is worse than the overflow. |
 | recovery whenever `recoverLostStream` is set | recovery additionally requires a non-empty `source_id` | `liblsl` builds its recovery query without `source_id` when the field is empty, so it can rebind to a *different* device that happens to share name, type, channel count and format. Mid-recording that is silent corruption; this package surfaces `lost` instead. |
+| `resolve` reports `noStreamsFound(accessState:)` | only `resolveFirst` does; `resolve` returns what it found, `minimum` or not | The reference is explicit that a short result is not an error ("If the timeout expires, less than the desired number of streams (possibly none) will be returned", `include/lsl_cpp.h:868-871`). A caller that *requires* a stream is the one that needs the probe, and paying for the probe on every empty query result would be wrong. |
+| `NetworkInterface` is an interface | it is one *address* of one interface | The outbound-interface socket option takes an IPv4 source address but an IPv6 interface index (`src/resolve_attempt_udp.cpp:169-170`), so the address, not the interface, is the unit the send loop needs. A dual-stack interface therefore appears twice. |
 
 ---
 
@@ -952,8 +954,20 @@ only once the entitlement lands.
    TN3179's worked example is TCP. The pre-flight authorisation probe (§6, §8.2) depends on
    this; if UDP does not surface the reason, the probe degrades to "raises the prompt but
    cannot read the answer", and denial detection falls back to the data-phase TCP connection
-   — which only helps *after* a successful resolve. Test this first; it is an afternoon's
-   work and it determines the diagnostics story.
+   — which only helps *after* a successful resolve.
+
+   **Partly answered (step 8), and the remainder cannot be answered from a terminal.**
+   Measured on macOS 26 with access granted: a UDP `NWConnection` to `224.0.0.1:16571`
+   reaches `.ready`, so `LocalNetwork.probe()` does return `.allowed` and the oracle exists
+   in that direction. The denial branch was not reachable — a command-line process is
+   granted local network access unconditionally (§8.3) and macOS cannot reset the privilege
+   (FB14944392) — so it is case 3 of `docs/PLATFORM-CHECKLIST.md`, to be run on a bundled,
+   properly-signed app.
+
+   The package is built so that the answer does not change its shape: `.allowed` means "not
+   observed to be denied", `noStreamsFound(accessState:)` already models `.unknown`, and the
+   authoritative denial signal remains the data-phase TCP connection, which `TCPConnection`
+   reads today.
 2. **iOS multicast entitlement approval outcome and latency.** Unknown. LSL is a legitimate
    research protocol with a decade of published use, which should help, but no timeline can
    be promised. Scope-limited now that macOS is unaffected and iOS `KnownPeers` works

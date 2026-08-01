@@ -145,6 +145,27 @@ public final class DatagramEndpoint: @unchecked Sendable {
         }
     }
 
+    /// Directs subsequent multicast sends out of one interface, or `nil` to let the routing
+    /// table choose.
+    ///
+    /// The network stack takes an IPv4 source address but an IPv6 interface index
+    /// (`src/resolve_attempt_udp.cpp:169-170`). Without this a multi-homed host reaches
+    /// only whichever interface holds the default route, and an unscoped `FF02:` group is
+    /// not routable at all (SCOPE.md §8.5).
+    public func setMulticastInterface(_ interface: NetworkInterface?) {
+        if family == sa_family_t(AF_INET6) {
+            var index = UInt32(interface?.index ?? 0)
+            setsockopt(
+                handle, Int32(IPPROTO_IPV6), IPV6_MULTICAST_IF, &index,
+                socklen_t(MemoryLayout<UInt32>.size))
+        } else {
+            var address = interface?.address.ipv4Address ?? in_addr(s_addr: INADDR_ANY)
+            setsockopt(
+                handle, Int32(IPPROTO_IP), IP_MULTICAST_IF, &address,
+                socklen_t(MemoryLayout<in_addr>.size))
+        }
+    }
+
     /// Sets the multicast hop limit for subsequent sends (SCOPE.md §2.1's TTL column).
     public func setMulticastTTL(_ ttl: Int) {
         var value = Int32(ttl)

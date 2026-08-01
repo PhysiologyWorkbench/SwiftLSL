@@ -9,7 +9,7 @@ struct LSLTool: AsyncParsableCommand {
         abstract: "Development harness for SwiftLSL. stdout is NDJSON; stderr is diagnostics.",
         subcommands: [
             EchoCommand.self, ResolveCommand.self, PullCommand.self, InfoCommand.self,
-            TimesyncCommand.self, RecordCommand.self,
+            TimesyncCommand.self, RecordCommand.self, NetinfoCommand.self,
         ]
     )
 

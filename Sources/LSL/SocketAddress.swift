@@ -53,6 +53,43 @@ public struct SocketAddress: Sendable, Hashable {
         }
     }
 
+    /// Copies an address the system handed us, such as an `ifaddrs` entry.
+    init?(sockaddr raw: UnsafePointer<sockaddr>) {
+        let length = socklen_t(raw.pointee.sa_len)
+        guard length > 0, Int(length) <= MemoryLayout<sockaddr_storage>.size else { return nil }
+        var storage = sockaddr_storage()
+        _ = withUnsafeMutableBytes(of: &storage) { destination in
+            UnsafeRawBufferPointer(start: raw, count: Int(length)).copyBytes(to: destination)
+        }
+        // `getifaddrs` reports a scoped IPv6 address in KAME form: the interface index sits
+        // in bytes 2-3 of the address itself and `sin6_scope_id` is left zero. Left as-is
+        // the address would print as `fe80:e::…` and route nowhere (SCOPE.md §8.5).
+        if storage.ss_family == sa_family_t(AF_INET6) {
+            withUnsafeMutablePointer(to: &storage) {
+                $0.withMemoryRebound(to: sockaddr_in6.self, capacity: 1) { address in
+                    withUnsafeMutableBytes(of: &address.pointee.sin6_addr) { bytes in
+                        guard bytes[0] == 0xfe || bytes[0] == 0xff else { return }
+                        let embedded = UInt32(bytes[2]) << 8 | UInt32(bytes[3])
+                        guard embedded != 0, address.pointee.sin6_scope_id == 0 else { return }
+                        address.pointee.sin6_scope_id = embedded
+                        bytes[2] = 0
+                        bytes[3] = 0
+                    }
+                }
+            }
+        }
+        self.init(storage: storage, length: length)
+    }
+
+    /// The raw IPv4 address, for socket options that take one — `IP_MULTICAST_IF`.
+    var ipv4Address: in_addr? {
+        guard !isIPv6 else { return nil }
+        var copy = storage
+        return withUnsafePointer(to: &copy) {
+            $0.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
+        }
+    }
+
     /// Parses a numeric address. Returns `nil` for anything needing name resolution.
     public init?(numericHost host: String, port: UInt16) {
         var hints = addrinfo()

@@ -22,6 +22,7 @@ protocol code.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Package layout, target dependency rules, concurrency model, the `lsltool` harness contract. |
 | [ROADMAP.md](ROADMAP.md) | Implementation plan: successive, independently testable steps. |
 | [TESTING.md](TESTING.md) | Testing strategy: Python harness, liblsl interop, mock peers. |
+| [docs/PLATFORM-CHECKLIST.md](docs/PLATFORM-CHECKLIST.md) | Local network privacy: Info.plist and entitlement templates, and the manual test script the automated suites cannot replace. |
 | [CLAUDE.md](CLAUDE.md) | Working rules for AI-assisted sessions in this repository. |
 | [swift-lsl-recorder-scope.md](swift-lsl-recorder-scope.md) | The original scoping brief that produced SCOPE.md. |
 

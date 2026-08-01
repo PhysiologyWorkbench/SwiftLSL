@@ -54,6 +54,24 @@ public struct StreamResolver: Sendable {
             query: Query.property(property, equals: value), minimum: minimum, timeout: timeout)
     }
 
+    /// Resolves, and treats finding nothing as a failure worth diagnosing.
+    ///
+    /// A silent local-network denial produces exactly the same empty list as "no such
+    /// stream exists" — on a raw UDP socket a denial has no signal at all (SCOPE.md §8.2).
+    /// So the probe runs before the failure is reported and its answer travels in the
+    /// error. `resolve` itself keeps the reference semantics: fewer results than `minimum`
+    /// is not an error there (`include/lsl_cpp.h:868-871`).
+    public func resolveFirst(
+        query: String? = nil,
+        timeout: Duration = .seconds(2)
+    ) async throws -> StreamInfo {
+        let found = try await resolve(query: query, minimum: 1, timeout: timeout)
+        guard let first = found.first else {
+            throw LSLError.noStreamsFound(accessState: await LocalNetwork.probe())
+        }
+        return first
+    }
+
     /// A long-lived resolver that yields the current set on every change, including when a
     /// stream stops answering for `forgetAfter` and is forgotten.
     public func continuousResolve(
@@ -113,7 +131,20 @@ public struct StreamResolver: Sendable {
         while !Task.isCancelled {
             for endpoint in endpoints {
                 endpoint.setMulticastTTL(configuration.scope.ttl)
-                send(query: fullQuery, queryID: queryID, from: endpoint, to: multicast)
+                let interfaces = NetworkInterfaces.forDiscovery(family: endpoint.family)
+                guard !interfaces.isEmpty else {
+                    // No enumerable interface: let the routing table pick, as the reference
+                    // does with its dummy entry (`src/api_config.cpp:281-292`).
+                    send(query: fullQuery, queryID: queryID, from: endpoint, to: multicast)
+                    continue
+                }
+                for interface in interfaces {
+                    endpoint.setMulticastInterface(interface)
+                    send(
+                        query: fullQuery, queryID: queryID, from: endpoint,
+                        to: targets(multicast, via: interface))
+                }
+                endpoint.setMulticastInterface(nil)
             }
 
             var waveInterval: Duration =
@@ -131,6 +162,26 @@ public struct StreamResolver: Sendable {
 
             try? await Task.sleep(for: waveInterval)
         }
+    }
+
+    /// The configured targets as seen from one interface.
+    ///
+    /// A multicast group is scoped to the interface it leaves by, which is what makes the
+    /// link-local `FF02:` group routable at all. The directed broadcast is added because
+    /// `IP_MULTICAST_IF` does not steer a broadcast: `255.255.255.255` follows the default
+    /// route whichever interface is selected, so on a multi-homed host it reaches exactly
+    /// one network (SCOPE.md §8.5).
+    func targets(_ addresses: [SocketAddress], via interface: NetworkInterface)
+        -> [SocketAddress]
+    {
+        var targets = addresses.map { $0.isIPv6 ? $0.withScopeID(interface.index) : $0 }
+        if let broadcast = interface.broadcastAddress,
+            let directed = SocketAddress(
+                numericHost: broadcast.host, port: configuration.multicastPort)
+        {
+            targets.append(directed)
+        }
+        return targets
     }
 
     /// A send failure is never fatal: an interface may be down, a scope unroutable, or the

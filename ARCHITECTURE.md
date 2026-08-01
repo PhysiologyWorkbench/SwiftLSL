@@ -91,6 +91,7 @@ Planned subcommands (added at the roadmap step shown):
 | `info --host --port` | 5 | Fetch and emit the full StreamInfo XML |
 | `timesync --host --port` | 6 | Run probe waves, emit each measurement and the selected offset |
 | `record` | 7 | Full inlet lifecycle: resolve → pull + offsets → NDJSON, with recovery |
+| `netinfo` | 8 | List the interfaces discovery sends from, and probe local network access |
 
 Note `pull`/`info`/`timesync` take explicit endpoints: the Python side obtains them via
 pylsl's own resolution, which keeps each roadmap step testable independently of the
