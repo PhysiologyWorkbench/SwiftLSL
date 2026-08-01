@@ -13,10 +13,6 @@ subset is five short text-framed exchanges plus one trivially simple binary samp
 There is no compression, no framing layer, no encryption, no state machine worth the name.
 A single afternoon of reading `liblsl` pins down every byte.
 
-**Effort: one weekend to a prototype that resolves and records a real `float32` stream;
-three to five focused weeks to a v1 you would trust in an actual recording session.**
-The protocol work is roughly one of those weeks. The rest is interoperability testing
-against real `liblsl` peers, reconnection/recovery behaviour, and Apple platform plumbing.
 
 Three findings materially change the shape of the job:
 
@@ -853,17 +849,11 @@ implemented with reference to `sccn/liblsl` (MIT, © 2012 Christian A. Kothe), w
 hash. This costs nothing, is honest about provenance, and forecloses the argument entirely.
 Cite the Kothe et al. paper as the protocol's academic reference.
 
-**MIT vs Unlicense — your call.** One line of view: MIT is the safer default. It is equally
-permissive in practice, is universally accepted by corporate and institutional legal review,
-and — relevantly for a Finnish author — does not rely on a public-domain dedication whose
-enforceability is doubtful in civil-law jurisdictions that do not permit waiver of moral
-rights. The Unlicense's only real advantage is removing the attribution requirement, which
-is not a burden anyone has complained about. If the goal is maximum downstream adoption, MIT
-gets you there with less friction.
+**MIT.** One line of view: MIT is the safer default. The Unlicense was considered but abandoned.
 
 ---
 
-## 11. Effort estimate
+## 11. Effort estimate (take with salt)
 
 Scale as used in the prior assessment: *weekend* / *one–two weeks* / *longer*.
 

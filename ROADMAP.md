@@ -222,11 +222,3 @@ found on target devices); hour-scale soak (step 7); CHANGELOG; tag `v0.1.0`.
 
 **Exit criteria.** Matrix green; docs build; tag pushed.
 
----
-
-## Estimates
-
-Per-area figures and the overall three-to-five-week envelope are in SCOPE.md §11.
-Rough mapping: step 1 ≈ a day; step 2 ≈ a weekend; steps 3–6 ≈ a weekend each
-including their mocks; step 7 ≈ 3–4 days; step 8 ≈ 3–4 days plus external entitlement
-latency; step 9 ≈ 2–3 days plus the interop-matrix tail.
