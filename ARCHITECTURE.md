@@ -17,7 +17,7 @@ SwiftLSL (this repository)
 ├── Tests/
 │   ├── LSLCoreTests/                // L0: unit tests + wire-format fixtures
 │   └── LSLTests/                    // L0: transport-free logic tests
-└── tests/python/                    // L1/L2: pytest harness (see TESTING.md)
+└── Tests/python/                    // L1/L2: pytest harness (see TESTING.md)
 ```
 
 Products: `LSLCore` and `LSL` (the latter depends on and re-exports the former).

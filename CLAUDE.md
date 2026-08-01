@@ -27,7 +27,7 @@ exist only there, record it as a gap instead of looking.
 - Work in ROADMAP.md step order; one step (or a coherent slice of one) per commit.
   Update the step's status checkbox in the same commit that completes it.
 - A step is done only when its exit criteria pass: `swift build && swift test` and
-  `cd tests/python && uv run pytest`, all green, reported with actual output.
+  `cd Tests/python && uv run pytest`, all green, reported with actual output.
 - New behaviour lands with tests at the lowest level that can express it (L0 before
   L1 before L2 — see TESTING.md).
 - If implementation reveals SCOPE.md to be wrong or incomplete, fix SCOPE.md in the
@@ -50,7 +50,7 @@ exist only there, record it as a gap instead of looking.
 
 ```sh
 swift build && swift test                   # L0
-cd tests/python && uv sync                  # once, or after dependency changes
-cd tests/python && uv run pytest            # L1 + L2 (needs brew-installed liblsl)
-cd tests/python && uv run pytest -m "not interop"   # L1 only
+cd Tests/python && uv sync                  # once, or after dependency changes
+cd Tests/python && uv run pytest            # L1 + L2 (needs brew-installed liblsl)
+cd Tests/python && uv run pytest -m "not interop"   # L1 only
 ```

@@ -28,14 +28,18 @@ first, code second.
 | **L1** | pytest | Python mocks | loopback | Protocol conformance to SCOPE §2, edge cases, fault handling |
 | **L2** | pytest | pylsl / liblsl | loopback (LAN for step 8) | Interoperability with the reference implementation |
 
-L0 lives in `Tests/`; L1 and L2 live in `tests/python/`. Every roadmap step must add
+L0 lives in `Tests/`; L1 and L2 live in `Tests/python/`. Every roadmap step must add
 tests at the lowest level that can express its behaviour — network tests never cover
 what a unit test could.
+
+(The Python harness sits under `Tests/` rather than a sibling `tests/` because macOS's
+default APFS is case-insensitive: the two would be one directory, and `git` would
+normalise the paths anyway.)
 
 ## Layout
 
 ```
-tests/python/
+Tests/python/
 ├── pyproject.toml          # uv project: pytest, pylsl
 ├── conftest.py             # LslTool fixture: spawn, wait-for-ready, NDJSON, SIGTERM
 ├── lslmock/                # mock peers, written from SCOPE.md §2 only
@@ -56,7 +60,7 @@ tests/python/
 
 ```sh
 brew install labstreaminglayer/tap/lsl      # liblsl dylib
-cd tests/python
+cd Tests/python
 uv sync
 uv run pytest                               # everything
 uv run pytest -m "not interop"              # L1 only (no liblsl needed)

@@ -1,0 +1,18 @@
+[project]
+name = "swiftlsl-tests"
+version = "0.0.0"
+description = "L1/L2 test harness for SwiftLSL"
+requires-python = ">=3.12"
+dependencies = [
+    "pytest>=8.0",
+    "pylsl>=1.17",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "interop: L2 test requiring a working liblsl via pylsl",
+]

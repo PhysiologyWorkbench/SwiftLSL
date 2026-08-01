@@ -37,7 +37,7 @@ protocol code.
 ```sh
 swift build
 swift test                                  # Swift unit tests (no network)
-cd tests/python && uv run pytest            # protocol + interop tests
+cd Tests/python && uv run pytest            # protocol + interop tests
 ```
 
 ## Licence

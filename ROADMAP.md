@@ -14,7 +14,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done.
 
 ---
 
-## [ ] Step 1 — Harness backbone (no protocol code)
+## [x] Step 1 — Harness backbone (no protocol code)
 
 **Goal.** A Swift executable a Python test can spawn, synchronise with, talk bytes to,
 and shut down — before any LSL code exists. This proves the entire build/test loop:
@@ -27,7 +27,7 @@ SwiftPM targets, NDJSON contract, process lifecycle, pytest plumbing.
   echo bytes until EOF, emit a `closed` event with byte count.
 - `lsltool echo udp [--port N]` — bind, emit `ready`, echo each datagram to its
   sender, emit per-datagram events.
-- `tests/python/` scaffold: `pyproject.toml` (uv-managed), `conftest.py` with an
+- `Tests/python/` scaffold: `pyproject.toml` (uv-managed), `conftest.py` with an
   `LslTool` fixture (spawn, wait-for-ready, NDJSON reader, SIGTERM teardown).
 - pytest tests: TCP echo round-trip, UDP echo round-trip (including a >1400-byte
   datagram), ready-event port parsing, clean SIGTERM exit.
