@@ -7,6 +7,7 @@ are used for synchronisation, ever.
 
 from __future__ import annotations
 
+import gc
 import json
 import queue
 import signal
@@ -121,6 +122,15 @@ class LslTool:
         return code
 
 
+def require_pylsl():
+    """L2 tests skip with a clear message when liblsl cannot be loaded (TESTING.md)."""
+    try:
+        import pylsl
+    except Exception as error:  # noqa: BLE001 - pylsl raises bare RuntimeError
+        pytest.skip(f"pylsl/liblsl unavailable: {error}")
+    return pylsl
+
+
 @pytest.fixture(scope="session")
 def lsltool_binary() -> str:
     subprocess.run(
@@ -150,3 +160,66 @@ def tool(lsltool_binary):
                 instance.wait_exit()
             except subprocess.TimeoutExpired:
                 instance.process.kill()
+
+
+class OutletHandle:
+    """Owns a pylsl outlet so a test can destroy it on demand.
+
+    liblsl tears an outlet down in its destructor, so "the outlet goes away" means
+    dropping the last reference — which is why the handle, not the outlet, is what the
+    fixture retains.
+    """
+
+    def __init__(self, instance):
+        self._instance = instance
+
+    def __getattr__(self, name):
+        if self._instance is None:
+            raise AttributeError(f"outlet already stopped (asked for {name})")
+        return getattr(self._instance, name)
+
+    def stop(self):
+        self._instance = None
+        gc.collect()
+
+
+@pytest.fixture
+def outlet():
+    """Factory for live pylsl outlets, torn down at the end of the test."""
+    pylsl = require_pylsl()
+    created: list[OutletHandle] = []
+
+    def make(name, type="Test", channels=1, srate=0.0, fmt="float32", source_id=None, desc=None):
+        info = pylsl.StreamInfo(
+            name, type, channels, srate,
+            getattr(pylsl, f"cf_{fmt}"),
+            source_id if source_id is not None else f"src-{name}",
+        )
+        if desc is not None:
+            desc(info.desc())
+        handle = OutletHandle(pylsl.StreamOutlet(info))
+        created.append(handle)
+        return handle
+
+    yield make
+
+    for handle in created:
+        handle.stop()
+
+
+@pytest.fixture
+def responder():
+    """Factory for mock discovery responders, closed at the end of the test."""
+    from lslmock.responder import MockResponder
+
+    created = []
+
+    def make(**kwargs):
+        instance = MockResponder(**kwargs)
+        created.append(instance)
+        return instance
+
+    yield make
+
+    for instance in created:
+        instance.close()

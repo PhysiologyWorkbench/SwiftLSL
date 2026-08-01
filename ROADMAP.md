@@ -64,7 +64,7 @@ blocks in SCOPE §2.2 including the quirks. `LSLCore` still imports Foundation o
 
 ---
 
-## [ ] Step 3 — Discovery
+## [x] Step 3 — Discovery
 
 **Goal.** Resolve real streams on the LAN and loopback.
 
