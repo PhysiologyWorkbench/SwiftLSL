@@ -337,7 +337,7 @@ in CI with no network, no entitlements and no peer, which is where the majority 
 correctness risk lives (record layout, test patterns, endianness, XML).
 
 ```
-swift-lsl/
+SwiftLSL/
 ├── Package.swift                    // platforms: .macOS(.v13), .iOS(.v16)
 ├── Sources/
 │   ├── LSLCore/                     // Foundation only
@@ -359,8 +359,9 @@ swift-lsl/
 │       ├── LocalNetworkProbe.swift  // NWConnection-based authorisation oracle, see §8.2
 │       └── Configuration.swift      // lsl_api.cfg-equivalent knobs, as a struct
 └── Tests/
-    ├── LSLCoreTests/                // vectors captured from a real liblsl outlet
-    └── LSLIntegrationTests/         // gated on a live liblsl peer
+    ├── LSLCoreTests/                // pure Swift codec/parser units; no network
+    ├── LSLPythonPeerTests/          // gated; Python pylsl outlet/inlet subprocesses
+    └── LSLAppBundleSmokeTests/      // gated; local-network privacy in a real app bundle
 ```
 
 ### Framework choices, and one deliberate exception
@@ -409,6 +410,45 @@ swift-lsl/
   `AsyncStream<Sample>` fed by a detached reader `Task`. The one `DispatchSourceRead` inside
   `DatagramEndpoint` is bridged to an `AsyncStream<Datagram>` at that boundary and does not
   leak outwards. `Sendable` throughout; no locks in the public surface.
+
+### Test methodology
+
+The automated interop tests should use **Python `pylsl` peers**, not a Swift mock outlet.
+This matters because the highest-risk failures are shared misunderstandings of the protocol:
+if the test outlet is built from the same Swift packet encoder, handshake parser or
+test-pattern generator as the inlet, the test suite can faithfully confirm the same wrong
+model twice.
+
+Recommended split:
+
+- **Pure Swift unit tests for `LSLCore`**: header parsing, XML parsing, query escaping,
+  sample-record decode, endian conversion, string length widths, deduced timestamps,
+  subnormal flushing and test-pattern equality. These should use small, hand-written byte
+  vectors and a few vectors captured from real peers, but they should not try to prove
+  end-to-end protocol compatibility.
+- **Python-driven integration tests**: `swift test` starts short-lived Python subprocesses
+  that use `pylsl` to publish real outlets for every channel format, regular and irregular
+  rates, marker streams, chunked pushes, stream metadata and source-id recovery cases. The
+  Swift inlet then resolves, subscribes, validates the test-pattern gate implicitly, pulls
+  samples and checks values/timestamps. A reverse-direction smoke test can also run a Swift
+  fixture outlet only if an outlet is later added, but that is not needed for this inlet-only
+  package.
+- **Python inlet probes for discovery and metadata**, where useful: a tiny Python script can
+  resolve the same stream and fetch its `StreamInfo`, giving a second opinion on whether the
+  Swift resolver's query construction and XML interpretation agree with established `liblsl`
+  behaviour.
+- **Gating and dependencies**: keep these tests opt-in in normal CI, e.g.
+  `LSL_RUN_PYTHON_INTEROP=1`, and skip with a clear message if `python3 -c "import pylsl"`
+  fails. Do not vendor `pylsl`; install it in the CI environment or a test virtualenv. The
+  Swift package should remain usable without Python.
+- **Local-network privacy tests remain separate**: macOS terminal-run tests are
+  automatically allowed (§8.3), so Python interop tests validate the LSL protocol but do not
+  validate user-facing permission-denial behaviour. Keep the bundled app smoke test in the
+  matrix for that.
+
+Python is still backed by `liblsl`, so it is not an independent *specification*. But it is an
+independent binding and implementation surface from the Swift code under test, which is the
+important property for avoiding self-confirming tests.
 
 ---
 
@@ -838,7 +878,7 @@ Scale as used in the prior assessment: *weekend* / *one–two weeks* / *longer*.
 | Reconnection, recovery, watchdog | **2–3 days** | Underestimated at first glance; it is state machine work and hard to test. |
 | Apple platform plumbing (Info.plist, sandbox entitlements, `LocalNetworkProbe`, error shaping) | **2–3 days** | Up from 1–2: the authorisation oracle is real work, not a plist entry. **No entitlement dependency on macOS at all.** iOS multicast approval is unbounded wall-clock, but only for the multicast discovery mode — `KnownPeers` ships without it. |
 | Packaging, public API polish, DocC | **2–3 days** | |
-| Interoperability testing against real `liblsl` peers | **one–two weeks** | The dominant cost. Multiple `liblsl` versions, all seven channel formats, irregular-rate streams, marker streams, multi-homed hosts, mid-session disconnects, IPv4/IPv6 mixes. |
+| Automated interoperability testing with Python `pylsl` peers, plus selected live-device checks | **one–two weeks** | The dominant cost. Use Python subprocesses as the primary automated oracle so the Swift inlet is tested against an established binding rather than a same-codebase mock. Cover multiple `liblsl` versions, all seven channel formats, irregular-rate streams, marker streams, multi-homed hosts, mid-session disconnects, IPv4/IPv6 mixes. |
 | Local network privacy test matrix | **2–3 days** | Separate from protocol interop and easy to underestimate: the macOS privilege cannot be reset (needs VM snapshots or throwaway user accounts), the simulator doesn't implement privacy at all, and terminal-run tests are auto-allowed so they don't exercise the denial path. |
 
 **Rolled up:**
