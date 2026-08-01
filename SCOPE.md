@@ -27,13 +27,22 @@ Three findings materially change the shape of the job:
 2. **"Chunks" are not a wire concept.** They are sender-side write batching only
    (`src/tcp_server.cpp:764-803`); the receiver reads a flat sequence of sample records
    (`src/data_receiver.cpp:312-330`). `pullChunk` on the inlet is purely local aggregation.
-3. **On iOS the blocker is not code, it is `com.apple.developer.networking.multicast`** — a
-   restricted entitlement requiring per-app approval from Apple, with wall-clock latency
-   outside your control. See §7. This applies to LSL discovery regardless of which socket
-   API you choose.
+3. **The multicast entitlement is an iOS-only problem, and even there it is avoidable.**
+   TN3179 states plainly: "The multicast entitlement isn't required on macOS." macOS needs
+   only the local network privacy prompt. On iOS, `com.apple.developer.networking.multicast`
+   is required — but it gates *sending* multicast/broadcast only; the `KnownPeers` unicast
+   discovery path needs no entitlement whatsoever (TN3179, *Multicast operations*: UDP
+   unicast send and receive are both "no"). See §8.
 
 Main risk is not technical difficulty; it is the long tail of interop against outlets
 produced by a decade of `liblsl` versions.
+
+One design consequence deserves flagging up front: on Apple platforms **there is no API to
+ask whether you have local network access** (TN3179, FB8711182). The only documented signal
+is `NWConnection`'s `unsatisfiedReason == .localNetworkDenied`. A denial on a raw UDP socket
+is invisible — sends appear to succeed and replies simply never arrive, which is byte-for-byte
+indistinguishable from "no outlets on this LAN". The package must therefore carry a
+deliberate `NWConnection`-based authorisation probe; see §6 and §8.2.
 
 ---
 
@@ -243,7 +252,7 @@ arithmetic to preserve precision (`src/common.cpp:19-21`, `44-51`).
 | Discovery: link + site scope, IPv4 multicast + broadcast | **In** | Covers essentially every real lab LAN. |
 | Discovery: IPv6 `FF02:`/`FF05:` groups | **In** | Cheap once the send path exists; macOS enables IPv6 by default in recent `liblsl`. |
 | Discovery: `KnownPeers` unicast | **In** | The documented escape hatch when multicast is blocked; ~20 lines. |
-| Discovery: send from *every* local interface | **Defer** | `liblsl` iterates all interfaces (`src/resolve_attempt_udp.cpp:160-195`). Matters on a Mac with Wi-Fi + Ethernet + VPN. Defer to v1.1; document the limitation loudly. |
+| Discovery: send from *every* broadcast-capable interface | **In** *(promoted)* | `liblsl` iterates all interfaces (`src/resolve_attempt_udp.cpp:160-195`), and TN3179 (*Identify the Wi-Fi interface correctly*) explicitly directs custom discovery protocols to "run your service discovery code on *all* broadcast-capable interfaces", warning that BSD names like `en0` "aren't considered API on any Apple platform". Enumerate with `getifaddrs` and filter by `SIOCGIFFUNCTIONALTYPE`; never hard-code names. |
 | Discovery: organization/global scope, `TTLOverride` | **Defer** | Configuration surface, no new protocol. |
 | Continuous (background) resolver | **In** | A recorder UI needs a live stream list. |
 | StreamInfo parse (short + full, incl. `<desc>` tree) | **In** | Required. |
@@ -257,8 +266,8 @@ arithmetic to preserve precision (`src/common.cpp:19-21`, `44-51`).
 | Subnormal suppression | **In** | ~10 lines. |
 | Metadata `LSL:fullinfo` | **In** | Channel labels/units live here; a recorder is useless without them. |
 | Time sync: probe waves, min-RTT selection | **In** | Required for any multi-machine recording. |
-| Live clock correction applied to timestamps | **Out (opt-in view only)** | See §8. |
-| Live dejittering (RLS) | **Out** | See §8. |
+| Live clock correction applied to timestamps | **Out (opt-in view only)** | See §9. |
+| Live dejittering (RLS) | **Out** | See §9. |
 | Reconnect / recovery by `source_id` re-resolve | **In** | Sessions run for hours; devices drop. `src/inlet_connection.cpp:149-229`. |
 | Watchdog (15 s no-data → re-resolve) | **In** | ~30 lines; without it a silent stall looks like a dead stream. |
 | `lsl_api.cfg` file parsing | **Defer** | Expose the same knobs as a Swift config struct; read the file later if anyone asks. |
@@ -311,8 +320,9 @@ Every gap below was found by reading the prose sources first and noting where th
 | 16 | Recovery query construction after a stream is lost. | **Resolved** — `src/inlet_connection.cpp:154-174`. Note `nominal_srate` is deliberately *excluded* from the query because float round-tripping breaks matching. |
 | 17 | Must an inlet bind within 16572–16603? | **Resolved** — no. `src/socket_utils.cpp:5-25` falls back to an OS-assigned port and the return port is carried in the query. |
 | 18 | Post-processing flag definitions. | **Resolved, but not where the brief said.** The brief cites `src/common.h:77-89`; that range holds the `lost_error`/`timeout_error` classes. The flags are `lsl_processing_options_t` at `include/lsl/common.h:99-130`. |
-| 19 | Apple TN3179 "Understanding local network privacy". | **Not resolved directly** — the page is JS-rendered and could not be fetched as text. Substituted Apple's entitlement reference page and the "How to use multicast networking in your app" developer-news article. Read TN3179 in a browser before finalising the Info.plist. |
-| 20 | Whether the multicast entitlement gate applies to BSD sockets as well as Network.framework. | **Not resolved** — Apple's guidance says "custom multicast and broadcast protocols require the entitlement", phrased in terms of traffic rather than API, which implies it is enforced below the API layer. Verify empirically on device before betting the architecture on it. |
+| 19 | Apple TN3179 "Understanding local network privacy". | **Resolved** — the page is JS-rendered and could not be fetched as text; supplied separately as PDF (revision 2026-02-17) and read in full. §8 is rewritten against it. |
+| 20 | Whether the local-network and multicast gates apply to BSD sockets as well as Network.framework. | **Resolved, and the answer is yes** — TN3179, *Local network operations*: "The system implements these TCP and UDP checks deep in the networking stack, and thus they apply to all networking APIs. This includes Network framework, BSD Sockets, URLSession, and any APIs implemented on top of those." Choice of socket API is therefore a pure API-fit decision, not a capability one. |
+| 21 | How a program detects that local network access was denied. | **Resolved, unhappily** — TN3179, *Check for local network access*: "There's no general API that returns whether the current process has local network access (FB8711182)." The documented signals are `NWConnection` entering `.waiting` with `currentPath?.unsatisfiedReason == .localNetworkDenied`, and `kDNSServiceErr_PolicyDenied` (-65570) for Bonjour. Neither covers a raw UDP socket. See §8.2. |
 
 Sources that were unreachable: the bioRxiv full-text HTML (`biorxiv.org/…/v1.full`) returns
 HTTP 403; the same paper was read via PubMed Central (`PMC12434378`, the published
@@ -345,6 +355,8 @@ swift-lsl/
 │       ├── TimeSynchroniser.swift   // UDP probe waves, min-RTT filter
 │       ├── MetadataFetcher.swift    // LSL:fullinfo
 │       ├── DatagramEndpoint.swift   // the one BSD-socket wrapper, see below
+│       ├── NetworkInterfaces.swift  // getifaddrs + SIOCGIFFUNCTIONALTYPE enumeration
+│       ├── LocalNetworkProbe.swift  // NWConnection-based authorisation oracle, see §8.2
 │       └── Configuration.swift      // lsl_api.cfg-equivalent knobs, as a struct
 └── Tests/
     ├── LSLCoreTests/                // vectors captured from a real liblsl outlet
@@ -373,9 +385,26 @@ swift-lsl/
     receives unicast replies. `NWConnectionGroup`'s entire value proposition — group
     membership management — is unused here.
 
-  This does **not** avoid the multicast entitlement (see gap #20); it is chosen for API fit.
-  Keep it behind `DatagramEndpoint` so it can be swapped if Network.framework's multicast
-  support grows a broadcast path.
+  This does **not** avoid the multicast entitlement or the local-network gate — TN3179
+  confirms both checks live "deep in the networking stack" and apply to BSD Sockets equally
+  (gap #20). The choice is purely API fit. Keep it behind `DatagramEndpoint` so it can be
+  swapped if Network.framework's multicast support grows a broadcast path.
+- **Interface enumeration: `getifaddrs`, filtered by the `SIOCGIFFUNCTIONALTYPE` ioctl.**
+  TN3179 is emphatic that BSD interface names are not API and must not be hard-coded. This
+  feeds both the multi-interface discovery send and IPv6 scope-id recovery (§8.5).
+- **Authorisation probe: a dedicated `NWConnection`.** Because a denied raw UDP socket gives
+  no signal at all (gap #21), `LocalNetworkProbe` exists solely to obtain one. Two usable
+  forms, in order of confidence:
+  1. The data-phase TCP connection is already an `NWConnection`; read
+     `currentPath?.unsatisfiedReason` when it enters `.waiting`. This path is documented and
+     reliable, and the system auto-retries once the user grants access — but it only fires
+     *after* discovery has already succeeded, which is too late to diagnose a failed resolve.
+  2. A pre-flight UDP `NWConnection` to a local-network address. TN3179 notes that
+     "connect[ing] a UDP socket to a local network address ... triggers the local network
+     alert without generating any network traffic", so this both raises the prompt at a
+     sensible moment and yields a state to observe. **Whether `unsatisfiedReason` is
+     populated for a *UDP* `NWConnection` is not stated in TN3179** — the worked example is
+     TCP. Verify before relying on it; see §12.
 - **Concurrency: structured, not GCD.** `StreamInlet` is an `actor`. Sample delivery is an
   `AsyncStream<Sample>` fed by a detached reader `Task`. The one `DispatchSourceRead` inside
   `DatagramEndpoint` is bridged to an `AsyncStream<Datagram>` at that boundary and does not
@@ -505,12 +534,38 @@ public actor StreamInlet {
     /// Latest offset; awaits the first measurement if none has completed.
     public func clockOffset(timeout: Duration = .seconds(5)) async throws -> ClockOffset
 
-    /// Every measurement, for recording alongside the samples. See §8.
+    /// Every measurement, for recording alongside the samples. See §9.
     public nonisolated var clockOffsets: AsyncStream<ClockOffset> { get }
 
     /// True once since the last call if the offset series was discontinuous
     /// (stream recovery). Recorders must segment on this.
     public func consumeOffsetResetFlag() -> Bool
+}
+
+// MARK: - Local network access
+
+/// Best-effort local-network authorisation state. There is no system API for this
+/// (TN3179, FB8711182); this is inferred from NWConnection, and `.unknown` is a
+/// legitimate and common answer.
+public enum LocalNetworkAccess: Sendable {
+    case allowed
+    case denied
+    case unknown
+}
+
+public enum LocalNetwork {
+    /// Performs a probe that both raises the system prompt (if undetermined) and
+    /// attempts to infer the current state. Call before the first resolve so the
+    /// user sees the alert in context.
+    public static func probe(timeout: Duration = .seconds(2)) async -> LocalNetworkAccess
+}
+
+// A resolve that yields nothing is ambiguous; the error type must distinguish.
+extension LSLError {
+    /// No outlets replied, and the probe reports access is denied.
+    case localNetworkDenied
+    /// No outlets replied, and access could not be determined.
+    case noStreamsFound(accessState: LocalNetworkAccess)
 }
 
 // MARK: - Free functions
@@ -527,44 +582,127 @@ consumer-side computation, not an inlet setting.
 ## 8. Apple-platform constraints
 
 These do not exist on the desktop/embedded reference targets and are the largest
-non-protocol risk in the project.
+non-protocol risk in the project. This section is written against
+**TN3179, revision 2026-02-17**, read in full.
 
-### 8.1 Multicast entitlement (iOS, and macOS 15+)
+Platform support for local network privacy (TN3179, *Overview*): iOS 14, iPadOS 14,
+**macOS 15**, visionOS 1. tvOS and watchOS: not supported — no prompt, no restriction.
 
-`com.apple.developer.networking.multicast` is a **restricted** entitlement. Per Apple:
-"custom multicast and broadcast protocols require the `com.apple.developer.networking.multicast`
-restricted entitlement", and it must be requested individually at
-`developer.apple.com/contact/request/networking-multicast`. Apps using Bonjour do *not*
-need it — but LSL is not Bonjour, so the exemption does not apply.
+### 8.1 Multicast entitlement — iOS only
 
-Consequences:
-- The iOS Simulator works without the entitlement; **physical hardware does not**. Plan for
-  the discrepancy in your test matrix.
-- Approval latency is outside your control. **Request it at project start, not at ship
-  time.** This is the single most schedule-relevant item in this document.
-- If approval is refused or delayed, the `KnownPeers` unicast path is a complete functional
-  fallback for discovery (no multicast, no broadcast) — which is a further argument for
-  putting `KnownPeers` in v1 rather than deferring it.
+> "The multicast entitlement isn't required on macOS." — TN3179, *Essentials*
 
-### 8.2 Local network privacy prompt
+This is a material correction to the initial read of this project's risk. **macOS is not
+gated by the entitlement at all**, only by the local network prompt (§8.2). Development,
+CI and any Mac-based recorder are unblocked from day one.
 
-iOS 14+ and macOS 15+ (Sequoia brought the iOS model to the Mac; macOS 15 adds a "Local
-Network" section under Privacy & Security). Any local-network traffic triggers a one-time
-user prompt.
+On iOS, `com.apple.developer.networking.multicast` is a restricted entitlement requested
+individually at `developer.apple.com/contact/request/networking-multicast`. TN3179's
+*Multicast operations* table is precise about what it gates:
 
-- **`NSLocalNetworkUsageDescription` is required** in Info.plist. Write a purpose string that
-  names what is discovered and why, not "this app uses the network".
-- **`NSBonjourServices` is *not* applicable.** The brief anticipates a "Bonjour service-type
-  declaration requirement"; that key gates `NWBrowser`/`NSNetServiceBrowser` mDNS browsing.
-  LSL discovery is raw UDP multicast to a fixed port, so there is no service type to declare.
-  The multicast entitlement is what applies instead — a considerably heavier requirement.
-- **Failure mode is the problem.** Denial does not surface as a clean error on every path;
-  sends can succeed while replies never arrive, which is indistinguishable from "no outlets
-  on this LAN". Detect and report it explicitly: if a resolve returns nothing, check
-  authorisation state and surface a distinct diagnostic rather than an empty list.
-- Read TN3179 in a browser before finalising Info.plist (gap #19).
+| Operation | Entitlement required (iOS) |
+|---|---|
+| Sending a UDP unicast | no |
+| Sending a UDP multicast | **yes** |
+| Sending a UDP broadcast | **yes** |
+| Receiving an incoming UDP unicast | no |
+| Receiving an incoming UDP multicast | yes |
+| Receiving an incoming UDP broadcast | yes |
 
-### 8.3 macOS App Sandbox
+Map that onto the inlet's actual behaviour (§2.1): the inlet **sends** to multicast and
+broadcast addresses, and **receives unicast replies**. It never joins a group and never
+receives multicast. So the entitlement is needed for the send side only — and:
+
+- **The `KnownPeers` unicast path requires no entitlement at all.** Unicast send and unicast
+  receive are both "no". A `KnownPeers`-configured iOS recorder needs only the local network
+  prompt. This is a complete, fully-supported discovery mode, not a degraded one, and it
+  settles the argument for putting `KnownPeers` in v1 (§3).
+- Request the entitlement at project start anyway; approval latency is outside your control.
+  But it is now a *feature-completeness* schedule item on one platform, not a project-wide
+  blocker.
+- **The iOS Simulator "doesn't support local network privacy"** (TN3179, *iOS
+  considerations*) — it silently permits everything. Testing on the simulator proves nothing
+  about either the prompt or the entitlement. Test on real hardware.
+- **App Clips cannot perform local network operations** at all.
+
+### 8.2 Local network privacy
+
+TN3179's *Local network operations* table, restricted to operations this package performs:
+
+| Operation | Local network access required |
+|---|---|
+| Making an outgoing TCP connection (data phase, `LSL:fullinfo`) | **yes** |
+| Sending a UDP unicast (`KnownPeers` query, time-sync probe) | **yes** |
+| Sending a UDP multicast / broadcast (discovery) | **yes** |
+| Connecting a UDP socket | **yes** |
+| Receiving an incoming UDP unicast (discovery replies, time-sync replies) | no |
+
+Note also that "all multicast addresses (`224.0.0.0/4`, `ff00::/8`) and the IPv4 broadcast
+address (`255.255.255.255`) are local network addresses" by definition — every LSL discovery
+target qualifies, regardless of routing.
+
+- **`NSLocalNetworkUsageDescription` is required** in the app's Info.plist (and in the *app's*,
+  not an extension's, if extensions are involved). Write a purpose string naming what is
+  discovered and why.
+- **`NSBonjourServices` is not applicable** — confirmed. TN3179 scopes it to registering,
+  browsing and resolving Bonjour services. LSL is raw UDP to a fixed port; there is no
+  service type to declare. The brief's expectation of a Bonjour declaration requirement does
+  not hold.
+- **The checks are enforced below the API layer**: "deep in the networking stack, and thus
+  they apply to all networking APIs. This includes Network framework, BSD Sockets,
+  URLSession". The BSD-socket choice in §6 buys nothing here and costs nothing.
+- **Detection is the real problem** (gap #21). There is no API for it. TN3179's only
+  documented signals are `NWConnection` `.waiting` with
+  `currentPath?.unsatisfiedReason == .localNetworkDenied`, and `kDNSServiceErr_PolicyDenied`
+  for Bonjour. On a raw UDP socket a denial is silent. Hence `LocalNetworkProbe` (§6) and the
+  `noStreamsFound(accessState:)` error shape (§7): an empty resolve must never be reported as
+  a bare empty list.
+- **Prompt while in the foreground.** TN3179, *iOS considerations*: a background app
+  performing a local network operation while the privilege is undetermined has the operation
+  **denied with no alert shown, and the decision is not recorded**. A recorder that starts a
+  resolve from a background task on first launch simply fails, invisibly. Probe in the
+  foreground during onboarding.
+- **VPN and cellular interfaces are not local networks** ("Such interfaces include Wi-Fi and
+  Ethernet, but not cellular (WWAN) or VPN"). Traffic over a lab VPN is therefore outside
+  local network privacy entirely — but such interfaces are also not broadcast-capable, so
+  multicast discovery will not traverse them. `KnownPeers` is the answer for VPN-connected
+  peers, as it is for `liblsl` itself.
+- **`.local` hostnames in `KnownPeers` require local network access to resolve.** If a site
+  configures peers as `rig-2.local`, DNS resolution itself is gated.
+
+### 8.3 macOS-specific behaviour
+
+Several items here materially affect the *test methodology*, and one is an outright trap.
+
+- **Command-line tools are automatically allowed.** macOS grants local network access to any
+  `launchd` daemon, any program running as root, and "command-line tools run from Terminal or
+  over SSH, including any child processes they spawn". **`swift test` from a terminal
+  therefore has unconditional access** — CI and integration tests are unblocked, but they
+  prove nothing about how the same code behaves inside an app bundle. Keep at least one
+  bundled smoke test in the matrix.
+- The daemon exemption **does not extend to `launchd` agents**. An agent needs
+  `AssociatedBundleIdentifiers` in its plist so macOS can attribute the access.
+- **There is no way to reset the privilege on macOS** (FB14944392). Re-testing the
+  undetermined state requires a VM snapshot or a fresh user account (state is per-user).
+  Budget for this in the test plan; it is not a five-minute loop.
+- **Short-lived processes may never show the alert** (FB16131937): "macOS fails to display the
+  local network alert when a process with a very short lifespan performs a local network
+  operation… update your code to not exit immediately after a local network operation fails."
+  This is a direct design constraint on the resolver: **it must not fail fast**. A resolve
+  that gives up and tears down on first failure can prevent the prompt from ever appearing,
+  producing a permanently unusable app. Keep the resolver alive across the wave schedule.
+- **Sign with an Apple-issued identity.** Local network privacy tracks program identity by
+  code signature; ad-hoc signing ("Sign to Run Locally") makes it behave erratically. The
+  main executable also needs a unique build UUID (TN3178).
+- **Site-wide escape hatch, worth telling users about.** macOS 15.5+ supports
+  `AllowedEthernetLocalNetworkAddresses` and `AllowedWiFiLocalNetworkAddresses` in the
+  `com.apple.network.local-network` defaults domain — arrays of CIDR strings whose addresses
+  are treated as non-local, bypassing the privilege for every program. Requires `sudo` and a
+  restart. TN3179 calls this out as "particularly useful for site administrators, including
+  developers who managed continuous integration (CI) systems", which describes a research lab
+  exactly. Document it as a deployment option.
+
+### 8.4 macOS App Sandbox
 
 `com.apple.security.network.client` (outbound TCP/UDP) and
 `com.apple.security.network.server` (bind and receive) are both required — the latter
@@ -572,10 +710,11 @@ because the discovery socket binds a port and receives unsolicited datagrams.
 
 `liblsl` itself ships an `lsl.entitlements` with these two plus
 `com.apple.security.network.multicast`. That third key is **not a documented Apple
-entitlement** as far as this review could establish; it appears to be aspirational. Do not
-copy it without verifying — an unrecognised entitlement key can fail code signing.
+entitlement** as far as this review could establish, and TN3179 confirms no multicast
+entitlement of any kind is required on macOS — so it is doing nothing. Do not copy it; an
+unrecognised entitlement key can fail code signing.
 
-### 8.4 IPv6 link-local scope IDs
+### 8.5 IPv6 link-local scope IDs
 
 Real: `liblsl` explicitly handles the case where an outlet advertises a link-local
 `v6address`, by re-resolving it through a name resolver to recover the scope
@@ -590,14 +729,20 @@ alone is not routable. This is straightforward but easy to omit, and it fails on
 multi-homed machines, which is exactly where it will be found late.
 
 Sending IPv6 multicast has the mirror problem: the outbound interface must be specified per
-group (`liblsl` sets it per interface at `src/resolve_attempt_udp.cpp:169-170`).
+group (`liblsl` sets it per interface at `src/resolve_attempt_udp.cpp:169-170`). TN3179's
+own sample code for triggering the privacy alert enumerates link-local IPv6 addresses via
+`getifaddrs` filtered on `IFF_BROADCAST`, which is the same enumeration the multi-interface
+discovery send needs — build it once (`NetworkInterfaces.swift`, §6).
 
-### 8.5 Background execution
+### 8.6 Background execution
 
 Not a permission but a real constraint: on iOS, a suspended app stops reading its TCP
 socket, the outlet's send buffer fills, and the connection is dropped. A recorder on iOS
 needs an appropriate background mode or an explicit "recording stops when backgrounded"
-contract. Out of scope for the package; must be stated in its documentation.
+contract. Out of scope for the package; must be stated in its documentation. Compounding
+this, an undetermined privilege plus a background local network operation yields a silent
+denial that is not even recorded (§8.2) — so the first resolve must happen in the
+foreground.
 
 ---
 
@@ -685,14 +830,16 @@ Scale as used in the prior assessment: *weekend* / *one–two weeks* / *longer*.
 | Area | Estimate | Notes |
 |---|---|---|
 | StreamInfo XML + query construction | **weekend** | `XMLParser` SAX + `<desc>` tree. No XPath needed. |
-| Discovery (query/response, link+site scopes, KnownPeers, wave scheduling) | **weekend** | Add ~2–3 days for per-interface sending if not deferred. |
+| Discovery (query/response, link+site scopes, KnownPeers, wave scheduling) | **weekend** | |
+| Multi-interface send + `getifaddrs`/`SIOCGIFFUNCTIONALTYPE` enumeration | **2–3 days** | Promoted into v1 on TN3179's explicit guidance (§3). Shared with IPv6 scope recovery. |
 | TCP data phase (handshake, 1.10 record codec, test patterns, endianness, subnormals) | **weekend** | The codec itself is a few hours; the test-pattern gate and header quirks are the rest. |
 | Metadata (`LSL:fullinfo`) | **half a day** | Reuses the TCP and XML layers entirely. |
 | Time synchronisation (probe waves, min-RTT filter, offset stream) | **half a day to a day** | Genuinely small. The only trap is the sign. |
 | Reconnection, recovery, watchdog | **2–3 days** | Underestimated at first glance; it is state machine work and hard to test. |
-| Apple platform plumbing (entitlements, Info.plist, authorisation diagnostics, IPv6 scope) | **1–2 days** of work | Plus **unbounded wall-clock** for multicast entitlement approval. Not on the critical path for macOS; entirely on it for iOS. |
+| Apple platform plumbing (Info.plist, sandbox entitlements, `LocalNetworkProbe`, error shaping) | **2–3 days** | Up from 1–2: the authorisation oracle is real work, not a plist entry. **No entitlement dependency on macOS at all.** iOS multicast approval is unbounded wall-clock, but only for the multicast discovery mode — `KnownPeers` ships without it. |
 | Packaging, public API polish, DocC | **2–3 days** | |
 | Interoperability testing against real `liblsl` peers | **one–two weeks** | The dominant cost. Multiple `liblsl` versions, all seven channel formats, irregular-rate streams, marker streams, multi-homed hosts, mid-session disconnects, IPv4/IPv6 mixes. |
+| Local network privacy test matrix | **2–3 days** | Separate from protocol interop and easy to underestimate: the macOS privilege cannot be reset (needs VM snapshots or throwaway user accounts), the simulator doesn't implement privacy at all, and terminal-run tests are auto-allowed so they don't exercise the denial path. |
 
 **Rolled up:**
 
@@ -702,42 +849,44 @@ Scale as used in the prior assessment: *weekend* / *one–two weeks* / *longer*.
 - Trustworthy in a real multi-hour, multi-device recording session: **three to five weeks
   total** of focused work.
 
-The estimate assumes macOS-first development with a `liblsl` outlet running locally, and
-iOS validation once the entitlement lands.
+The estimate assumes macOS-first development with a `liblsl` outlet running locally. Since
+macOS requires no multicast entitlement, **nothing on the macOS path waits on Apple**. iOS
+validation splits: the `KnownPeers` mode can be validated immediately, multicast discovery
+only once the entitlement lands.
 
 ---
 
 ## 12. Uncertainties
 
-1. **The multicast entitlement gate versus BSD sockets** (gap #20). The proposed
-   architecture uses raw sockets for UDP; if the entitlement check turns out to be
-   Network.framework-specific, the picture changes (favourably). If it is enforced in the
-   kernel — the likelier reading — nothing changes. Verify on device early. Either way this
-   affects capability, not architecture, since the API-fit argument for BSD sockets in §6
-   stands independently.
-2. **Entitlement approval outcome and latency.** Unknown. LSL is a legitimate research
-   protocol with a decade of published use, which should help, but no timeline can be
-   promised.
-3. **TN3179 was not read** (gap #19). Some detail of the Info.plist requirements or the
-   macOS 15 prompt behaviour may be missing here.
-4. **Swift's monotonic clock versus `std::chrono::steady_clock`.** Darwin's `steady_clock`
+1. **Does a *UDP* `NWConnection` populate `unsatisfiedReason == .localNetworkDenied`?**
+   TN3179's worked example is TCP. The pre-flight authorisation probe (§6, §8.2) depends on
+   this; if UDP does not surface the reason, the probe degrades to "raises the prompt but
+   cannot read the answer", and denial detection falls back to the data-phase TCP connection
+   — which only helps *after* a successful resolve. Test this first; it is an afternoon's
+   work and it determines the diagnostics story.
+2. **iOS multicast entitlement approval outcome and latency.** Unknown. LSL is a legitimate
+   research protocol with a decade of published use, which should help, but no timeline can
+   be promised. Scope-limited now that macOS is unaffected and iOS `KnownPeers` works
+   without it.
+3. **Swift's monotonic clock versus `std::chrono::steady_clock`.** Darwin's `steady_clock`
    does not advance across system sleep; Swift's `ContinuousClock` and `SuspendingClock`
    differ on precisely this point, and which maps to `steady_clock` was not verified. Low
    risk — the NTP exchange measures the offset between whatever clocks the two peers use, so
    consistency matters more than identity — but it affects timestamp interpretation across a
    sleep/wake cycle and should be checked before a long unattended recording.
-5. **Real-world protocol version distribution.** The decision to drop protocol 1.00 (§4)
+4. **Real-world protocol version distribution.** The decision to drop protocol 1.00 (§4)
    assumes sub-1.10 outlets are effectively extinct in the field. This was not measured. If
    a target device ships an ancient embedded `liblsl`, the estimate grows by several days.
-6. **Per-interface multicast sending is deferred**, and its practical impact was not
-   measured. On a laptop with Wi-Fi plus a VPN interface, sending only from the default
-   route may miss outlets. If early testing shows this, promote it into v1.
-7. **`liblsl` master is ahead of any release.** The clone (`e651023`) contains a synchronous
+5. **Interaction between multi-interface sending and the privacy prompt.** Sending discovery
+   queries from every broadcast-capable interface is now in v1, but whether the local network
+   privilege is evaluated per-interface or per-process is not stated in TN3179. If
+   per-interface, a partially-granted state may be possible and would need handling.
+6. **`liblsl` master is ahead of any release.** The clone (`e651023`) contains a synchronous
    zero-copy send mode not present in shipped versions. Nothing in the *inlet-side* wire
    protocol appeared to differ, but the byte layouts here were verified against master, not
    against a tagged release. Cross-check against the version actually deployed on the
    devices you intend to record from.
-8. **The `<desc>` schema is a convention, not a specification.** The paper points to the XDF
+7. **The `<desc>` schema is a convention, not a specification.** The paper points to the XDF
    GitHub wiki for content-type nomenclature. The package should parse `<desc>` as a generic
    tree and let the consumer interpret it; imposing a schema would be premature.
 
@@ -766,7 +915,9 @@ Apple:
 - [com.apple.developer.networking.multicast](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.networking.multicast)
 - [How to use multicast networking in your app](https://developer.apple.com/news/?id=0oi77447)
 - [NSLocalNetworkUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nslocalnetworkusagedescription)
-- [TN3179: Understanding local network privacy](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) — not machine-readable; not read
+- [TN3179: Understanding local network privacy](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) — revision 2026-02-17, read in full from a
+  PDF supplied by the user; the live page is JS-rendered and not machine-readable. §8 is
+  written against it.
 - [NWEndpoint.Host.interface](https://developer.apple.com/documentation/network/nwendpoint/host/interface)
 
 `sccn/secureLSL` and `eeglab.org/secureLSL` were not consulted.
