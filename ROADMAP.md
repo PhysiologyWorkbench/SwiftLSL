@@ -38,7 +38,7 @@ SwiftPM targets, NDJSON contract, process lifecycle, pytest plumbing.
 
 ---
 
-## [ ] Step 2 — LSLCore: wire codecs (no networking)
+## [x] Step 2 — LSLCore: wire codecs (no networking)
 
 **Goal.** Every byte-level protocol decision implemented and unit-tested in pure Swift.
 

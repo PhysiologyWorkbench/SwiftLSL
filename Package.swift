@@ -21,7 +21,11 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
-        .testTarget(name: "LSLCoreTests", dependencies: ["LSLCore"]),
+        .testTarget(
+            name: "LSLCoreTests",
+            dependencies: ["LSLCore"],
+            resources: [.copy("Fixtures")]
+        ),
         .testTarget(name: "LSLTests", dependencies: ["LSL"]),
     ]
 )
