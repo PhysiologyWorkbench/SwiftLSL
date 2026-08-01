@@ -249,6 +249,24 @@ def mock_outlet():
 
 
 @pytest.fixture
+def time_server():
+    """Factory for mock time servers, closed at the end of the test."""
+    from lslmock.timeserver import MockTimeServer
+
+    created = []
+
+    def make(**kwargs):
+        instance = MockTimeServer(**kwargs)
+        created.append(instance)
+        return instance
+
+    yield make
+
+    for instance in created:
+        instance.close()
+
+
+@pytest.fixture
 def info_server():
     """Factory for mock LSL:fullinfo servers, closed at the end of the test."""
     from lslmock.inforesponder import MockInfoServer

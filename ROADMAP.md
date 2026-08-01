@@ -135,7 +135,7 @@ session as step 4, but lands as its own commit with its own tests.
 
 ---
 
-## [ ] Step 6 — Time synchronisation
+## [x] Step 6 — Time synchronisation
 
 **Goal.** Clock-offset measurement with the correct sign, filter, and cadence.
 
