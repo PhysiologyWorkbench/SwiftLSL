@@ -157,6 +157,12 @@ Quirks that must be replicated:
 - If the response omits `Data-Protocol-Version` entirely, the inlet's local default is
   **100**, not 110 (`src/data_receiver.cpp:160-161`) — so a silent outlet asks for the
   archive format this package refuses (§4).
+- `Max-Buffer-Length` is in **samples** on the wire, but `liblsl`'s API parameter of the
+  same name is in **seconds**, converted with the nominal rate — or 100 samples per second
+  for an irregular stream (`src/lsl_inlet_c.cpp:17-22`,
+  `stream_info_impl::calc_transport_buf_samples`). Its default of 360 s means a 512 Hz
+  stream asks the outlet for a 184320-sample buffer. An inlet that sends a literal 360
+  here interoperates, but loses samples the moment the sender bursts.
 - `Max-Buffer-Length: 0` causes the outlet to send the header and then stop
   (`src/tcp_server.cpp:730`).
 - The outlet reads the client's version preference from a header named

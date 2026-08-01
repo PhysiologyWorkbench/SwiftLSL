@@ -89,7 +89,7 @@ loopback.
 
 ---
 
-## [ ] Step 4 — Data phase
+## [x] Step 4 — Data phase
 
 **Goal.** Pull correctly decoded samples from a real liblsl outlet.
 

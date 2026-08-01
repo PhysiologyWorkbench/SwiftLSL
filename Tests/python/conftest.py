@@ -207,6 +207,47 @@ def outlet():
         handle.stop()
 
 
+def pylsl_endpoint(pylsl, name, timeout=10.0):
+    """Resolve an outlet with pylsl and return (host, data_port, uid, info).
+
+    Endpoints for pull/info/timesync tests are obtained on the Python side, which is what
+    keeps roadmap steps 3-6 mutually independent (TESTING.md).
+    """
+    import re
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for info in pylsl.resolve_streams(1.0):
+            if info.name() == name:
+                xml = info.as_xml()
+
+                def field(tag):
+                    match = re.search(rf"<{tag}>(.*?)</{tag}>", xml)
+                    return match.group(1) if match else ""
+
+                return ("127.0.0.1", int(field("v4data_port")), field("uid"), info)
+    raise AssertionError(f"pylsl could not resolve an outlet named {name}")
+
+
+@pytest.fixture
+def mock_outlet():
+    """Factory for scripted mock outlets, closed at the end of the test."""
+    from lslmock.outlet import MockOutlet
+
+    created = []
+
+    def make(**kwargs):
+        instance = MockOutlet(**kwargs)
+        created.append(instance)
+        return instance
+
+    yield make
+
+    for instance in created:
+        instance.close()
+
+
 @pytest.fixture
 def responder():
     """Factory for mock discovery responders, closed at the end of the test."""
