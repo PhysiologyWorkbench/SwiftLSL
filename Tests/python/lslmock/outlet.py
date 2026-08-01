@@ -99,6 +99,7 @@ class MockOutlet:
         data_protocol_version=110,
         corrupt_test_pattern=False,
         samples=(),
+        stall=False,
         host="127.0.0.1",
     ):
         self.fmt = fmt
@@ -110,6 +111,7 @@ class MockOutlet:
         self.data_protocol_version = data_protocol_version
         self.corrupt_test_pattern = corrupt_test_pattern
         self.samples = list(samples)
+        self.stall = stall
         self.requests: queue.Queue[HandshakeRequest] = queue.Queue()
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -162,6 +164,14 @@ class MockOutlet:
                 client.sendall(
                     encode_sample(
                         self.fmt, values, TEST_PATTERN_TIMESTAMP, self.pack_order))
+
+            if self.stall:
+                # Accept, complete the handshake, then go silent: the connection stays
+                # open and only a watchdog notices (SCOPE.md §3).
+                while not self._stop.is_set():
+                    self._stop.wait(0.1)
+                client.close()
+                return
 
             for timestamp, values in self.samples:
                 client.sendall(encode_sample(self.fmt, values, timestamp, self.pack_order))

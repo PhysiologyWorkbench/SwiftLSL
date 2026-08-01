@@ -208,7 +208,7 @@ actor ResolveSession {
     }
 
     private var entries: [String: Entry] = [:]
-    private var waiters: [(threshold: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var waiters = WaiterSet()
     private var listeners: [AsyncStream<[StreamInfo]>.Continuation] = []
     private let forgetAfter: Duration?
 
@@ -237,10 +237,20 @@ actor ResolveSession {
     }
 
     func waitForCount(_ threshold: Int) async {
-        if entries.count >= threshold { return }
-        await withCheckedContinuation { continuation in
-            waiters.append((threshold, continuation))
+        while entries.count < threshold, !Task.isCancelled {
+            let id = waiters.allocate()
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    waiters.park(id, continuation, satisfied: entries.count >= threshold)
+                }
+            } onCancel: {
+                Task { await self.cancelWait(id) }
+            }
         }
+    }
+
+    private func cancelWait(_ id: Int) {
+        waiters.cancel(id)
     }
 
     func changes() -> AsyncStream<[StreamInfo]> {
@@ -266,9 +276,7 @@ actor ResolveSession {
     private func publish() {
         let current = snapshot()
         for listener in listeners { listener.yield(current) }
-        let ready = waiters.filter { current.count >= $0.threshold }
-        waiters.removeAll { current.count >= $0.threshold }
-        for waiter in ready { waiter.continuation.resume() }
+        waiters.resumeAll()
     }
 }
 

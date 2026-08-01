@@ -157,7 +157,7 @@ L2 test is even run; then both green.
 
 ---
 
-## [ ] Step 7 — Inlet assembly: recovery, watchdog, public API
+## [x] Step 7 — Inlet assembly: recovery, watchdog, public API
 
 **Goal.** The `StreamInlet` actor per SCOPE §7, wiring steps 3–6 together into the
 deliverable API.

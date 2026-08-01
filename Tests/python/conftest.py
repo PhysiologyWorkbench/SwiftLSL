@@ -12,6 +12,7 @@ import json
 import queue
 import signal
 import subprocess
+import sys
 import threading
 from pathlib import Path
 
@@ -25,6 +26,25 @@ DEFAULT_EXIT_TIMEOUT = 10.0
 
 class ToolExited(Exception):
     """Raised when the tool's stdout reaches EOF while an event was expected."""
+
+
+#: Every `lsltool` still running in the current test.
+#:
+#: liblsl's `StreamOutlet` destructor blocks while an inlet is still attached, so any
+#: fixture that destroys an outlet must take the tools down first, whatever order pytest
+#: would otherwise finalise the fixtures in.
+_active_tools: list["LslTool"] = []
+
+
+def terminate_active_tools() -> None:
+    for instance in list(_active_tools):
+        if instance.process.poll() is None:
+            instance.process.send_signal(signal.SIGTERM)
+            try:
+                instance.wait_exit()
+            except subprocess.TimeoutExpired:
+                instance.process.kill()
+    _active_tools.clear()
 
 
 class LslTool:
@@ -149,17 +169,12 @@ def tool(lsltool_binary):
     def spawn(*args: str) -> LslTool:
         instance = LslTool(lsltool_binary, *args)
         spawned.append(instance)
+        _active_tools.append(instance)
         return instance
 
     yield spawn
 
-    for instance in spawned:
-        if instance.process.poll() is None:
-            instance.process.send_signal(signal.SIGTERM)
-            try:
-                instance.wait_exit()
-            except subprocess.TimeoutExpired:
-                instance.process.kill()
+    terminate_active_tools()
 
 
 class OutletHandle:
@@ -203,6 +218,7 @@ def outlet():
 
     yield make
 
+    terminate_active_tools()
     for handle in created:
         handle.stop()
 
@@ -246,6 +262,46 @@ def mock_outlet():
 
     for instance in created:
         instance.close()
+
+
+class OutletProcess:
+    """A pylsl outlet running in its own process, killable at any moment."""
+
+    def __init__(self, **options):
+        arguments = []
+        for key, value in options.items():
+            arguments += [f"--{key.replace('_', '-')}", str(value)]
+        self.process = subprocess.Popen(
+            [sys.executable, "-m", "lslmock.outlet_process", *arguments],
+            cwd=Path(__file__).parent,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        line = self.process.stdout.readline()
+        assert line.strip() == "ready", f"outlet process did not start: {line!r}"
+
+    def kill(self):
+        if self.process.poll() is None:
+            self.process.kill()
+            self.process.wait(timeout=10)
+
+
+@pytest.fixture
+def outlet_process():
+    """Factory for out-of-process pylsl outlets, killed at the end of the test."""
+    require_pylsl()
+    created: list[OutletProcess] = []
+
+    def make(**options):
+        instance = OutletProcess(**options)
+        created.append(instance)
+        return instance
+
+    yield make
+
+    for instance in created:
+        instance.kill()
 
 
 @pytest.fixture

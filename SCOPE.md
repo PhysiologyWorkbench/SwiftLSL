@@ -668,6 +668,10 @@ consumer-side computation, not an inlet setting.
 | — | `HandshakeRequest.endianPerformance`, default 0 | See §2.2: the value is a policy choice, and 0 avoids benchmarking on every connect. |
 | `XMLElement` | `MetadataElement` | `Foundation.XMLElement` exists on macOS, so any consumer importing both modules would have to qualify every use. |
 | `InletConfiguration.maxBufferedSamples` | `InletConfiguration.maxBuffered: Duration` | The wire field is in samples but `liblsl`'s parameter is in seconds; see §2.2. Expressing it in samples invites a buffer three orders of magnitude too small. |
+| `StreamInlet.info` is the stream it was created with | it is the stream it is *currently* attached to | After a recovery the UID and possibly the address have changed, and a recorder needs the live values. The pre-recovery UID is still recoverable from the offset-reset event. |
+| — | `StreamInlet.init(_:configuration:resolver:)` | Recovery is a re-resolve, so the inlet needs the resolver configuration the caller found the stream with — `KnownPeers` in particular, without which a recovery on a multicast-blocked network can never succeed. |
+| — | `StreamInlet.droppedSampleCount()` | A recorder must be able to say whether a gap in its file is real. Silently discarding overflow with no way to detect it is worse than the overflow. |
+| recovery whenever `recoverLostStream` is set | recovery additionally requires a non-empty `source_id` | `liblsl` builds its recovery query without `source_id` when the field is empty, so it can rebind to a *different* device that happens to share name, type, channel count and format. Mid-recording that is silent corruption; this package surfaces `lost` instead. |
 
 ---
 

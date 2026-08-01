@@ -75,7 +75,8 @@ contract must stay stable:
 - **stderr is human diagnostics**, unparsed.
 - The first event after a socket is bound is a readiness line, e.g.
   `{"event":"ready","proto":"tcp","port":16572}` — the harness blocks on it instead of
-  sleeping.
+  sleeping. `record` resolves before it can bind anything, so it emits
+  `{"event":"resolving",...}` first and `ready` once the data phase is up.
 - Exit code 0 on success; non-zero with a final `{"event":"error",...}` line otherwise.
 - `SIGTERM` produces a prompt, clean shutdown (the harness always terminates spawned
   tools this way).

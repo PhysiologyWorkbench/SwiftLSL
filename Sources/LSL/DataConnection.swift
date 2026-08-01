@@ -37,16 +37,16 @@ public struct InletConfiguration: Sendable {
 ///
 /// This is the layer `StreamInlet` is built on. Use it directly only when you already know
 /// the endpoint and want no buffering, recovery or time synchronisation.
-public final class DataConnection {
-    private let connection: TCPConnection
+public actor DataConnection {
+    private nonisolated let connection: TCPConnection
     private let codec: SampleCodec
     private var deducer: TimestampDeducer
     private var buffer = Data()
     private var consumed = 0
 
-    public let info: StreamInfo
-    public let byteOrder: WireByteOrder
-    public let suppressSubnormals: Bool
+    public nonisolated let info: StreamInfo
+    public nonisolated let byteOrder: WireByteOrder
+    public nonisolated let suppressSubnormals: Bool
 
     private init(
         connection: TCPConnection, info: StreamInfo, byteOrder: WireByteOrder,
@@ -154,7 +154,7 @@ public final class DataConnection {
         consumed = 0
     }
 
-    public func close() {
+    public nonisolated func close() {
         connection.close()
     }
 
