@@ -70,29 +70,29 @@ public struct ByteReader: Sendable {
 }
 
 /// Sequential writer over a byte buffer.
-public struct ByteWriter: Sendable {
-    public private(set) var data = Data()
+package struct ByteWriter: Sendable {
+    package private(set) var data = Data()
 
-    public init() {}
+    package init() {}
 
-    public mutating func writeByte(_ value: UInt8) {
+    package mutating func writeByte(_ value: UInt8) {
         data.append(value)
     }
 
-    public mutating func write(_ bytes: Data) {
+    package mutating func write(_ bytes: Data) {
         data.append(bytes)
     }
 
-    public mutating func writeInteger<T: FixedWidthInteger>(_ value: T, _ order: WireByteOrder) {
+    package mutating func writeInteger<T: FixedWidthInteger>(_ value: T, _ order: WireByteOrder) {
         let ordered = order == .little ? value.littleEndian : value.bigEndian
         withUnsafeBytes(of: ordered) { data.append(contentsOf: $0) }
     }
 
-    public mutating func writeDouble(_ value: Double, _ order: WireByteOrder) {
+    package mutating func writeDouble(_ value: Double, _ order: WireByteOrder) {
         writeInteger(value.bitPattern, order)
     }
 
-    public mutating func writeFloat(_ value: Float, _ order: WireByteOrder) {
+    package mutating func writeFloat(_ value: Float, _ order: WireByteOrder) {
         writeInteger(value.bitPattern, order)
     }
 }

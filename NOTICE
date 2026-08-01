@@ -1,0 +1,57 @@
+# Notices and acknowledgements
+
+SwiftLSL contains no code from any other project. It has no dependencies outside the
+Swift standard library and Apple's system frameworks; `lsltool`, a development harness
+rather than a shipped product, additionally uses `apple/swift-argument-parser` (MIT).
+
+## Lab Streaming Layer
+
+SwiftLSL implements the LSL wire protocol, inlet side. The protocol was reconstructed
+from the public documentation and from reading the reference implementation,
+[`sccn/liblsl`](https://github.com/sccn/liblsl) (MIT, © 2012 Christian A. Kothe), at
+commit `e651023`. What was taken is protocol facts — field names, byte layouts, magic
+constants, formulas — recorded with `file:line` citations throughout
+[SCOPE.md](SCOPE.md) §2. No liblsl source was copied or transliterated.
+
+Two areas sit closer to expression than to fact and were handled deliberately
+(SCOPE.md §10):
+
+- The **test-pattern generator** (`src/sample.cpp:356-405`) produces values that are
+  protocol constants and must match byte for byte, but `Sources/LSLCore/TestPattern.swift`
+  was written from the specification in SCOPE.md §2.2, not from the C++.
+- The **RLS dejitterer** (`src/time_postprocessor.cpp:104-131`) is out of scope
+  (SCOPE.md §9) and is not present here. Porting it later would mean porting
+  expression, and would carry liblsl's MIT notice with it.
+
+liblsl's own licence is reproduced here for reference:
+
+> Copyright (C) 2012 Christian A. Kothe
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this
+> software and associated documentation files (the "Software"), to deal in the Software
+> without restriction, including without limitation the rights to use, copy, modify,
+> merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+> permit persons to whom the Software is furnished to do so, subject to the following
+> conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies
+> or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+> INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+> PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+> HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+> CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+> OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Academic reference
+
+Kothe, C. A., Shirazi, S. Y., Stenner, T., Medine, D., Boulay, C., Grivich, M. I.,
+Mullen, T., Delorme, A., & Makeig, S. (2025). The Lab Streaming Layer for synchronized
+multimodal recording. *Imaging Neuroscience*.
+
+## Test harness
+
+The `Tests/python` suite compares SwiftLSL against `pylsl`, which loads liblsl. Neither
+is redistributed by this repository; both are resolved at test time by `uv` and are not
+part of any build product.

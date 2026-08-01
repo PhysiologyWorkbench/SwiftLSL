@@ -33,6 +33,14 @@ public actor StreamInlet {
     /// replacement stream's info, with a new UID and possibly a new address.
     public nonisolated var info: StreamInfo { infoStorage.withLock { $0 } }
 
+    /// Creates an inlet for a resolved stream.
+    ///
+    /// The resolver is retained because recovery is a re-resolve: without the
+    /// configuration the stream was found with — `knownPeers` above all — a recovery on a
+    /// multicast-blocked network could never succeed.
+    ///
+    /// - Throws: ``LSLCore/LSLError/unsupportedProtocolVersion(_:)`` for a pre-1.10 outlet
+    ///   (SCOPE.md §4), ``LSLCore/LSLError/invalidStreamInfo(_:)`` if the info carries no address.
     public init(
         _ info: StreamInfo,
         configuration: InletConfiguration = .init(),
@@ -69,6 +77,8 @@ public actor StreamInlet {
         startSynchroniser()
     }
 
+    /// Stops everything and finishes ``samples`` and ``clockOffsets``. Idempotent; an
+    /// inlet does not reopen.
     public func close() {
         guard !closed else { return }
         closed = true

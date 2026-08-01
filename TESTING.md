@@ -42,32 +42,42 @@ normalise the paths anyway.)
 Tests/python/
 ├── pyproject.toml          # uv project: pytest, pylsl
 ├── conftest.py             # LslTool fixture: spawn, wait-for-ready, NDJSON, SIGTERM
+├── capture_fixture.py      # golden-trace capture, one fixture per liblsl release
+├── soak.py                 # hour-scale pre-release soak (step 9)
 ├── lslmock/                # mock peers, written from SCOPE.md §2 only
 │   ├── responder.py        # discovery: answers LSL:shortinfo with canned XML
 │   ├── outlet.py           # data phase: scripted handshake + sample bytes
-│   ├── timeserver.py       # timedata: crafted t1/t2 replies
-│   └── proxy.py            # byte-recording TCP proxy for golden-trace capture
+│   ├── outlet_process.py   # a pylsl outlet in its own process, killable mid-stream
+│   ├── inforesponder.py    # LSL:fullinfo: chunked and invalid documents
+│   └── timeserver.py       # timedata: crafted t1/t2 replies
 └── tests/
     ├── test_harness.py     # step 1
     ├── test_resolve.py     # step 3
     ├── test_pull.py        # step 4
     ├── test_info.py        # step 5
     ├── test_timesync.py    # step 6
-    └── test_inlet.py       # step 7
+    ├── test_inlet.py       # step 7
+    └── test_platform.py    # step 8
 ```
 
 ## Setup
 
 ```sh
-brew install labstreaminglayer/tap/lsl      # liblsl dylib
 cd Tests/python
-uv sync
+uv sync                                     # pytest + pylsl, which bundles liblsl
 uv run pytest                               # everything
 uv run pytest -m "not interop"              # L1 only (no liblsl needed)
 ```
 
-L2 tests carry `@pytest.mark.interop` and skip with a clear message when pylsl cannot
-load liblsl (`PYLSL_LIB` overrides the search path if needed).
+The pylsl wheel ships its own `liblsl.dylib`, so no Homebrew install is needed; a
+system-wide liblsl works too. `PYLSL_LIB` overrides the search path, which is how the
+release interop matrix runs. L2 tests carry `@pytest.mark.interop` and skip with a clear
+message when pylsl cannot load liblsl at all.
+
+**Run the suite on an otherwise quiet machine.** The L1 mocks bind the discovery port
+range (16572+) and assert on every datagram they receive, so any other LSL process on the
+host — another test run, a stray `lsltool`, a soak — makes them fail on a request that
+was never meant for them.
 
 ## Harness conventions
 
@@ -82,14 +92,39 @@ load liblsl (`PYLSL_LIB` overrides the search path if needed).
 - Mock peers assert on *our* bytes as rigorously as we assert on theirs — a mock that
   accepts a malformed query is a test bug.
 
-## Golden traces
+## Golden traces and the release interop matrix
 
-Step 4 captures real liblsl handshake/sample bytes through `lslmock/proxy.py` into
-`Tests/LSLCoreTests/Fixtures/` (one trace per channel format, committed). L0 tests
-replay them through the `LSLCore` decoders, so reference bytes are exercised on every
-`swift test` run without Python or a network. Re-capture only deliberately — e.g.
-against a new liblsl release for the step 9 interop matrix — since changed fixtures
-must be explainable.
+`capture_fixture.py` connects to a live pylsl outlet, performs a real
+`LSL:streamfeed/110` handshake built from SCOPE §2 alone, and commits the response header
+plus the two test-pattern records — one trace per channel format — to
+`Tests/LSLCoreTests/Fixtures/test-patterns-liblsl-<version>.json`. L0 tests replay every
+committed fixture through the `LSLCore` decoders, so reference bytes from each liblsl
+release are exercised on every `swift test` run, without Python or a network.
+
+That is the durable half of the release interop matrix: it keeps proving old releases
+after the dylib that produced it is gone. The other half is running the L2 suite against
+each version in turn:
+
+```sh
+cd Tests/python
+uv run pytest                                          # bundled liblsl
+PYLSL_LIB=/path/to/other/liblsl.dylib uv run pytest    # a second release
+PYLSL_LIB=/path/to/other/liblsl.dylib uv run python capture_fixture.py
+```
+
+An older release generally has to be built from source; `sccn/liblsl` needs
+`-DLSL_UNITTESTS=OFF -DLSL_BUILD_EXAMPLES=OFF` to configure standalone. `capture_fixture.py`
+refuses to overwrite an existing fixture: a changed fixture must be explainable.
+
+## The soak
+
+`soak.py` is the pre-release gate that the suite's `test_short_soak_loses_no_samples` is
+a CI-sized version of. It pushes at a nominal rate for an hour and asserts that every
+sample arrives, none is dropped, and the recorder's resident size stays bounded:
+
+```sh
+cd Tests/python && uv run python soak.py --minutes 60
+```
 
 ## Platform caveats for local runs and CI
 

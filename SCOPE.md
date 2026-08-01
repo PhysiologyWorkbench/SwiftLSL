@@ -292,7 +292,8 @@ arithmetic to preserve precision (`src/common.cpp:19-21`, `44-51`).
 | Discovery: IPv6 `FF02:`/`FF05:` groups | **In** | Cheap once the send path exists; macOS enables IPv6 by default in recent `liblsl`. |
 | Discovery: `KnownPeers` unicast | **In** | The documented escape hatch when multicast is blocked; ~20 lines. |
 | Discovery: send from *every* broadcast-capable interface | **In** *(promoted)* | `liblsl` iterates all interfaces (`src/resolve_attempt_udp.cpp:160-195`), and TN3179 (*Identify the Wi-Fi interface correctly*) explicitly directs custom discovery protocols to "run your service discovery code on *all* broadcast-capable interfaces", warning that BSD names like `en0` "aren't considered API on any Apple platform". Enumerate with `getifaddrs` and filter by `SIOCGIFFUNCTIONALTYPE`; never hard-code names. |
-| Discovery: organization/global scope, `TTLOverride` | **Defer** | Configuration surface, no new protocol. |
+| Discovery: organization/global scope | **In** *(promoted)* | Deferred as "configuration surface, no new protocol" — which is exactly why it landed: two more `ResolveScope` constants once the address sets and TTLs were already expressed as data. |
+| Discovery: `TTLOverride` | **Defer** | Belongs with `lsl_api.cfg` parsing; `ResolveScope.custom(addresses:ttl:)` covers the same ground from code. |
 | Continuous (background) resolver | **In** | A recorder UI needs a live stream list. |
 | StreamInfo parse (short + full, incl. `<desc>` tree) | **In** | Required. |
 | XPath *evaluation* | **Out** | Outlet-side only. Inlet builds query strings; never evaluates them. |
@@ -355,7 +356,7 @@ Every gap below was found by reading the prose sources first and noting where th
 | 12 | String channel length encoding. | **Resolved** — `src/sample.cpp:199-216` / `240-261`. Width byte then length, not a plain varint. |
 | 13 | Multicast address sets and TTLs per scope. | **Resolved, with doc/source divergence** — `src/api_config.cpp:188-263`. `docs/info/lslapicfg.rst` documents `MachineAddresses = {FF31:…}`; the source default is `{127.0.0.1}` and IPv6 groups are *composed* per scope as `FF0x:` + `IPv6MulticastGroup`. Trust the source. |
 | 14 | Are chunks a wire-level construct? | **Resolved** — no. `src/tcp_server.cpp:764-803` batches writes; `src/data_receiver.cpp:312-330` reads a flat stream. The docs' framing of chunking as a transmission feature is about throughput, not format. |
-| 15 | Local clock definition. | **Resolved** — `std::chrono::steady_clock`, ns, integer-divided (`src/common.cpp:19-21`, `44-51`). |
+| 15 | Local clock definition. | **Resolved** — `std::chrono::steady_clock`, ns, integer-divided (`src/common.cpp:19-21`, `44-51`). On Darwin that clock is `CLOCK_MONOTONIC_RAW`, established by comparing `lsl_local_clock()` against each candidate on macOS 26; plain `CLOCK_MONOTONIC` is adjusted and drifts seconds away (§12 item 3). |
 | 16 | Recovery query construction after a stream is lost. | **Resolved** — `src/inlet_connection.cpp:154-174`. Note `nominal_srate` is deliberately *excluded* from the query because float round-tripping breaks matching. |
 | 17 | Must an inlet bind within 16572–16603? | **Resolved** — no. `src/socket_utils.cpp:5-25` falls back to an OS-assigned port and the return port is carried in the query. |
 | 18 | Post-processing flag definitions. | **Resolved, but not where the brief said.** The brief cites `src/common.h:77-89`; that range holds the `lost_error`/`timeout_error` classes. The flags are `lsl_processing_options_t` at `include/lsl/common.h:99-130`. |
@@ -403,6 +404,15 @@ SwiftLSL/
     └── LSLAppBundleSmokeTests/      // gated; local-network privacy in a real app bundle
 ```
 
+This is the proposal as written before implementation; [ARCHITECTURE.md](ARCHITECTURE.md)
+records the layout as built. Three differences are worth naming: `SampleRecord.swift`
+became `Sample.swift` plus `SampleCodec.swift`, because the deduced-timestamp rule is a
+step after decoding rather than part of it; the Python peers live in a `uv`-managed
+pytest project under `Tests/python/` rather than in a Swift test target, which is what
+lets them be written from §2 alone (see [TESTING.md](TESTING.md)); and the app-bundle
+smoke tests are a manual checklist, `docs/PLATFORM-CHECKLIST.md`, because the privilege
+they would exercise cannot be reset programmatically (§8.3).
+
 ### Framework choices, and one deliberate exception
 
 - **StreamInfo parsing: `Foundation.XMLParser`.** Available on every Apple platform.
@@ -412,8 +422,10 @@ SwiftLSL/
   point-to-point, connection-oriented, TCP no-delay via
   `NWProtocolTCP.Options.noDelay = true`, and `receive(minimumIncompleteLength:maximumLength:)`
   maps naturally onto "read exactly N bytes".
-- **UDP legs (discovery, time sync): BSD sockets via `Darwin`, wrapped in one small actor
-  over `DispatchSourceRead`.** This is the deliberate exception, and the reason is
+- **UDP legs (discovery, time sync): BSD sockets via `Darwin`, wrapped in one small type
+  over `DispatchSourceRead`** (as built, a `final class` holding the socket rather than an
+  actor: `send` must be callable from the synchronous wave loop, and the socket is the
+  serialisation point already). This is the deliberate exception, and the reason is
   structural rather than stylistic:
   - `NWConnectionGroup`/`NWMulticastGroup` **does not support UDP broadcast**, and
     `255.255.255.255` is in LSL's default link-scope target set.
@@ -488,6 +500,15 @@ Recommended split:
 Python is still backed by `liblsl`, so it is not an independent *specification*. But it is an
 independent binding and implementation surface from the Swift code under test, which is the
 important property for avoiding self-confirming tests.
+
+As built ([TESTING.md](TESTING.md)) the direction is inverted: pytest is the runner and
+drives a Swift CLI, `lsltool`, over an NDJSON contract, rather than `swift test` spawning
+Python. That removes the gating environment variable this section proposed — the Swift
+package needs no Python at all, so there is nothing to gate — and it added a level this
+section did not anticipate: **mock peers written from §2 alone**, which give the
+deterministic fault injection `pylsl` cannot be made to produce. Agreement between the
+mocks, `liblsl` and the Swift code is what validates §2 itself as a sufficient
+specification.
 
 ---
 
@@ -659,8 +680,16 @@ consumer-side computation, not an inlet setting.
 
 ### Deviations from this sketch, as implemented
 
+Audited symbol by symbol against the emitted public symbol graph at the v0.1.0 tag
+(ROADMAP step 9); everything the graph contains and this sketch does not is listed below.
+
 | Sketch | As built | Why |
 |---|---|---|
+| — | the wire codecs are `package`, not `public` | `DiscoveryMessage`, `HandshakeRequest`/`Response`, `TimeSyncMessage`, `Query`, `TestPattern`, `ByteWriter`, `SampleCodec.encode`, `DatagramEndpoint`, `DataConnection`, `TimeSynchroniser` and `MetadataFetcher` are needed across target boundaries but promise nothing to a consumer. Swift's `package` access keeps them out of the published surface without weakening the tests, which are in the same package. |
+| — | `LSLCore` publishes an offline-decoding surface | `StreamInfoXML`, `SampleCodec.decode`, `ByteReader`, `SampleRecord`, `TimestampDeducer`, `WireByteOrder`. ARCHITECTURE.md promises `LSLCore` is usable on its own to decode a captured stream; that promise needs these. |
+| `ResolverConfiguration` has six fields | adds `useMulticast`, `basePort`, `portRange`, `multicastMinRTT`, `unicastMinRTT`, `continuousResolveInterval`; `ResolveScope` adds `organization` and `global` | The stated intent is "the same knobs as `lsl_api.cfg`, with the same defaults", and these are in it. `useMulticast` is the exception: it has no `lsl_api.cfg` equivalent and exists because a `KnownPeers`-only resolve is the iOS path that needs no entitlement (§8.1). |
+| `resolve(query: String, …)` | `resolve(query: String? = nil, …)` | `nil` means "every stream in this session", which is otherwise unexpressible: the session predicate is composed by the resolver, not the caller. |
+| `LSLError` has the cases in this sketch | eleven more | Each names a distinct protocol failure a recorder can act on; they are listed with their causes in `Sources/LSLCore/LSLError.swift`. |
 | `StreamInfo.description: XMLElement?` | `StreamInfo.desc: MetadataElement?` | A property named `description` silently satisfies `CustomStringConvertible`, changing what every `"\(info)"` prints. |
 | `StreamInfo` has no transport fields | adds `v4Address`, `v4DataPort`, `v4ServicePort` and the `v6` triple | The inlet cannot connect without them, and `v4address` is the field the resolver fills in from the reply's source address (§2.1). The address fields are `var` for exactly that reason. |
 | — | `Sample` / `SampleRecord` split | A record off the wire may carry no timestamp (tag 1). Deduction needs the previous timestamp and the nominal rate, so it is a separate, testable step rather than a decoder side effect. |
@@ -978,6 +1007,12 @@ only once the entitlement lands.
    risk — the NTP exchange measures the offset between whatever clocks the two peers use, so
    consistency matters more than identity — but it affects timestamp interpretation across a
    sleep/wake cycle and should be checked before a long unattended recording.
+
+   **Answered (step 6).** `lsl_local_clock()` was compared against each candidate on
+   macOS 26: liblsl's `steady_clock` is `CLOCK_MONOTONIC_RAW`, which `lslClock()` now
+   reads directly. Plain `CLOCK_MONOTONIC` is adjusted and drifts seconds away.
+   `CLOCK_MONOTONIC_RAW` does keep running across system sleep. What remains untested is
+   a real sleep/wake cycle mid-recording, which needs an unattended overnight run.
 4. **Real-world protocol version distribution.** The decision to drop protocol 1.00 (§4)
    assumes sub-1.10 outlets are effectively extinct in the field. This was not measured. If
    a target device ships an ancient embedded `liblsl`, the estimate grows by several days.
@@ -990,6 +1025,12 @@ only once the entitlement lands.
    protocol appeared to differ, but the byte layouts here were verified against master, not
    against a tagged release. Cross-check against the version actually deployed on the
    devices you intend to record from.
+
+   **Largely answered (step 9).** The full L1/L2 suites run against the two tagged
+   releases 1.17.7 and 1.16.2, and golden traces captured from both are committed and
+   replayed on every `swift test`. The handshake response and the test patterns for all
+   seven formats are byte-identical between them. Releases older than 1.16.2 remain
+   untested; that is the residual form of this uncertainty, and of item 4.
 7. **The `<desc>` schema is a convention, not a specification.** The paper points to the XDF
    GitHub wiki for content-type nomenclature. The package should parse `<desc>` as a generic
    tree and let the consumer interpret it; imposing a schema would be premature.

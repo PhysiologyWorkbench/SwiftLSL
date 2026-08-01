@@ -131,7 +131,7 @@ public struct SampleCodec: Sendable {
 
     // MARK: - Encoding
 
-    public func encode(_ record: SampleRecord) -> Data {
+    package func encode(_ record: SampleRecord) -> Data {
         var writer = ByteWriter()
         if let timestamp = record.timestamp {
             writer.writeByte(Self.tagTransmittedTimestamp)

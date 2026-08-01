@@ -9,7 +9,8 @@ import LSLCore
 /// `FF02:` discovery group, which would leave a legitimate target unnameable.
 public struct SocketAddress: Sendable, Hashable {
     private var storage: sockaddr_storage
-    public let length: socklen_t
+    package let length: socklen_t
+    /// The numeric form, from `inet_ntop`; never a name.
     public let host: String
     public let port: UInt16
 
@@ -91,7 +92,7 @@ public struct SocketAddress: Sendable, Hashable {
     }
 
     /// Parses a numeric address. Returns `nil` for anything needing name resolution.
-    public init?(numericHost host: String, port: UInt16) {
+    package init?(numericHost host: String, port: UInt16) {
         var hints = addrinfo()
         hints.ai_flags = AI_NUMERICHOST
         hints.ai_socktype = SOCK_DGRAM
@@ -106,7 +107,7 @@ public struct SocketAddress: Sendable, Hashable {
     /// On Apple platforms resolving a `.local` name is itself gated by local network
     /// access, so a `KnownPeers` entry like `rig-2.local` can fail for permission reasons
     /// alone (SCOPE.md §8.2).
-    public static func resolve(host: String, port: UInt16) -> [SocketAddress] {
+    package static func resolve(host: String, port: UInt16) -> [SocketAddress] {
         var hints = addrinfo()
         hints.ai_socktype = SOCK_DGRAM
         return lookUp(host: host, port: port, hints: hints)
@@ -139,7 +140,7 @@ public struct SocketAddress: Sendable, Hashable {
 
     /// A copy bound to a particular interface. Only meaningful for IPv6: a link-local
     /// peer or multicast group is unreachable without a scope (SCOPE.md §8.5).
-    public func withScopeID(_ scopeID: UInt32) -> SocketAddress {
+    package func withScopeID(_ scopeID: UInt32) -> SocketAddress {
         guard isIPv6 else { return self }
         var copy = storage
         withUnsafeMutablePointer(to: &copy) {

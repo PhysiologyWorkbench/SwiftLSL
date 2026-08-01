@@ -13,7 +13,9 @@ SwiftLSL (this repository)
 ├── Sources/
 │   ├── LSLCore/                     // pure codecs — Foundation only, no I/O
 │   ├── LSL/                         // transports — Network.framework, Darwin, Dispatch
+│   │   └── LSL.docc/                // documentation catalogue for both modules
 │   └── lsltool/                     // CLI harness executable
+├── Scripts/build-docs.sh            // symbol graphs -> docc convert
 ├── Tests/
 │   ├── LSLCoreTests/                // L0: unit tests + wire-format fixtures
 │   └── LSLTests/                    // L0: transport-free logic tests
@@ -36,8 +38,16 @@ datagram endpoint, interface enumeration, local-network probe in `LSL`).
    No third-party packages in either library target, ever — the package's value is
    being dependency-free.
 3. **`lsltool` may depend on `swift-argument-parser`.** It is a development tool, not a
-   product; the dependency does not propagate to library consumers.
-4. TCP legs use `NWConnection`; UDP legs use BSD sockets behind `DatagramEndpoint`.
+   product; the dependency does not propagate to library consumers. For the same reason
+   `swift-docc-plugin` is *not* a dependency — a plugin appears in every consumer's
+   resolved graph — and `Scripts/build-docs.sh` drives the `docc` that ships with Xcode
+   from the symbol graphs instead.
+4. **Public means promised.** The published surface is what SCOPE.md §7 specifies, plus
+   the additions its deviations table records; anything needed across target boundaries
+   but not promised to a consumer is `package`. `swift package dump-symbol-graph
+   --minimum-access-level public` prints the surface, and is how the release audit is
+   done.
+5. TCP legs use `NWConnection`; UDP legs use BSD sockets behind `DatagramEndpoint`.
    Rationale in SCOPE.md §6 — the choice is API fit, not capability (SCOPE.md §8.2).
 
 ## Concurrency model

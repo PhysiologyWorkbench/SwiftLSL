@@ -3,12 +3,12 @@
 /// The inlet generates them independently and compares for exact equality, timestamp
 /// included; a mismatch means the protocol formats are incompatible and the connection
 /// must be dropped (SCOPE.md §2.2, `src/sample.cpp:356-405`).
-public enum TestPattern {
+package enum TestPattern {
     /// Sent in this order (`src/tcp_server.cpp:698`).
-    public static let offsets = [4, 2]
+    package static let offsets = [4, 2]
 
     /// Every test-pattern sample carries exactly this timestamp.
-    public static let timestamp = 123456.789
+    package static let timestamp = 123456.789
 
     /// Added to `offset` before generation, per format. `string` ignores the offset.
     static func bias(for format: ChannelFormat) -> Int {
@@ -23,7 +23,7 @@ public enum TestPattern {
         }
     }
 
-    public static func sample(
+    package static func sample(
         format: ChannelFormat, channelCount: Int, offset: Int
     ) throws -> SampleRecord {
         SampleRecord(

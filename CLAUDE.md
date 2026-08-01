@@ -51,6 +51,15 @@ exist only there, record it as a gap instead of looking.
 ```sh
 swift build && swift test                   # L0
 cd Tests/python && uv sync                  # once, or after dependency changes
-cd Tests/python && uv run pytest            # L1 + L2 (needs brew-installed liblsl)
+cd Tests/python && uv run pytest            # L1 + L2 (liblsl comes with the pylsl wheel)
 cd Tests/python && uv run pytest -m "not interop"   # L1 only
+Scripts/build-docs.sh                       # DocC archive; must build without warnings
 ```
+
+Run the Python suite on an otherwise quiet machine: the L1 mocks own the discovery port
+range and fail on any stray LSL traffic, including a concurrent `soak.py`.
+
+New public API is added deliberately, not by default. Anything needed across target
+boundaries but not promised to a consumer is `package`; the published surface must stay
+what SCOPE §7 and its deviations table describe. `swift package dump-symbol-graph
+--minimum-access-level public` prints it.

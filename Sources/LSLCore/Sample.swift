@@ -10,6 +10,7 @@ public enum SampleValues: Sendable, Hashable {
     case int64([Int64])
     case string([String])
 
+    /// The number of channels carried, whatever the case.
     public var count: Int {
         switch self {
         case .float32(let v): v.count
@@ -22,6 +23,7 @@ public enum SampleValues: Sendable, Hashable {
         }
     }
 
+    /// The channel format this case corresponds to.
     public var format: ChannelFormat {
         switch self {
         case .float32: .float32
@@ -72,6 +74,8 @@ public struct TimestampDeducer: Sendable {
         self.nominalSampleRate = nominalSampleRate
     }
 
+    /// Returns the record as a `Sample`, deducing the timestamp when it carried none.
+    /// Stateful: records must be passed in the order they arrived.
     public mutating func materialise(_ record: SampleRecord) -> Sample {
         let timestamp: Double
         if let transmitted = record.timestamp {

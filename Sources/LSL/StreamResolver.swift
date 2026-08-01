@@ -4,6 +4,7 @@ import LSLCore
 /// Finds outlets by sending `LSL:shortinfo` queries and collecting unicast replies
 /// (SCOPE.md §2.1).
 public struct StreamResolver: Sendable {
+    /// The scope, session and peer settings every resolve on this instance uses.
     public let configuration: ResolverConfiguration
 
     public init(configuration: ResolverConfiguration = .init()) {
@@ -44,6 +45,7 @@ public struct StreamResolver: Sendable {
         return await session.snapshot()
     }
 
+    /// Resolves on a single StreamInfo field, e.g. `resolve(property: "type", equals: "EEG")`.
     public func resolve(
         property: String,
         equals value: String,

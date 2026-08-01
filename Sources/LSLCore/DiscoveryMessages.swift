@@ -2,13 +2,13 @@ import Foundation
 
 /// The `LSL:shortinfo` exchange (SCOPE.md §2.1, `src/resolve_attempt_udp.cpp:53-58`,
 /// `src/udp_server.cpp:122-150`). Framing only — the sockets live in `LSL`.
-public enum DiscoveryMessage {
+package enum DiscoveryMessage {
     /// ```
     /// LSL:shortinfo\r\n
     /// <query>\r\n
     /// <return port> <query id>\r\n
     /// ```
-    public static func query(_ query: String, returnPort: UInt16, queryID: String) -> Data {
+    package static func query(_ query: String, returnPort: UInt16, queryID: String) -> Data {
         Data("LSL:shortinfo\r\n\(query)\r\n\(returnPort) \(queryID)\r\n".utf8)
     }
 
@@ -16,7 +16,7 @@ public enum DiscoveryMessage {
     /// responder only echoes it and the querier only compares it against its own value,
     /// so any unique string works — and reproducing libstdc++'s hash would be pointless
     /// (SCOPE.md gap #5).
-    public static func newQueryID() -> String {
+    package static func newQueryID() -> String {
         String(UInt64.random(in: 0...UInt64.max))
     }
 
@@ -26,7 +26,7 @@ public enum DiscoveryMessage {
     /// (`src/resolve_attempt_udp.cpp:110-118`). The reference hands the newline itself to
     /// its parser, which tolerates it; `XMLParser` rejects any byte before the XML
     /// declaration, so leading whitespace is skipped here.
-    public static func parseReply(_ datagram: Data) throws -> (queryID: String, xml: Data) {
+    package static func parseReply(_ datagram: Data) throws -> (queryID: String, xml: Data) {
         guard let newline = datagram.firstIndex(of: 0x0A) else {
             throw LSLError.malformedMessage("discovery reply has no query id line")
         }
@@ -42,7 +42,7 @@ public enum DiscoveryMessage {
     private static let whitespace: Set<UInt8> = [0x20, 0x09, 0x0A, 0x0D]
 
     /// The reply an outlet sends: the echoed id, then the `<desc>`-less info XML.
-    public static func reply(queryID: String, xml: String) -> Data {
+    package static func reply(queryID: String, xml: String) -> Data {
         Data("\(queryID)\r\n\(xml)".utf8)
     }
 }

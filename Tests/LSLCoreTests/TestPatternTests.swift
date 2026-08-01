@@ -6,14 +6,14 @@ import Testing
 @Suite("Test patterns")
 struct TestPatternTests {
     /// The generator must reproduce, bit for bit, what a real outlet sends — a mismatch
-    /// drops the connection (SCOPE.md §2.2). These are the bytes a live liblsl 1.17.7
-    /// outlet actually sent for a five-channel stream of each format.
+    /// drops the connection (SCOPE.md §2.2). These are the bytes live liblsl outlets
+    /// actually sent for a five-channel stream of each format, one capture per release.
     @Test(
         "Generated patterns match a live liblsl outlet's bytes",
-        arguments: ChannelFormat.allCases.filter { $0 != .undefined }
+        arguments: ChannelFormat.allCases.filter { $0 != .undefined },
+        TestPatternFixtures.all
     )
-    func matchesCapturedTrace(format: ChannelFormat) throws {
-        let fixtures = TestPatternFixtures.shared
+    func matchesCapturedTrace(format: ChannelFormat, fixtures: TestPatternFixtures) throws {
         let codec = SampleCodec(format: format, channelCount: fixtures.channelCount)
         var reader = ByteReader(fixtures.bytes(format.wireName))
 
@@ -25,9 +25,8 @@ struct TestPatternTests {
         #expect(reader.remaining == 0, "the trace holds exactly two records")
     }
 
-    @Test("Both patterns re-encode to the captured bytes")
-    func reencodesToCapturedTrace() throws {
-        let fixtures = TestPatternFixtures.shared
+    @Test("Both patterns re-encode to the captured bytes", arguments: TestPatternFixtures.all)
+    func reencodesToCapturedTrace(fixtures: TestPatternFixtures) throws {
         for format in ChannelFormat.allCases where format != .undefined {
             let codec = SampleCodec(format: format, channelCount: fixtures.channelCount)
             var encoded = Data()

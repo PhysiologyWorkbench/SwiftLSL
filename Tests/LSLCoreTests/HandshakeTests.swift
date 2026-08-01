@@ -66,20 +66,18 @@ struct HandshakeTests {
 
     // MARK: - Response parsing
 
-    @Test("A live liblsl response parses and validates")
-    func capturedResponse() throws {
-        let block = Data(TestPatternFixtures.shared.responseHeader.utf8)
+    @Test("A live liblsl response parses and validates", arguments: TestPatternFixtures.all)
+    func capturedResponse(fixtures: TestPatternFixtures) throws {
+        let block = Data(fixtures.responseHeader.utf8)
         let response = try HandshakeResponse.parse(block)
         #expect(response.version == 110)
         #expect(response.statusCode == 200)
         #expect(response.statusMessage == "OK")
-        #expect(response.uid == "9f066061-97af-4113-b79c-1f395da8aeb1")
         #expect(response.byteOrderValue == 1234)
         #expect(response.suppressSubnormals == false)
         #expect(response.dataProtocolVersion == 110)
-        #expect(
-            try response.validate(
-                expectedUID: "9f066061-97af-4113-b79c-1f395da8aeb1", format: .float32) == .little)
+        let uid = try #require(response.uid)
+        #expect(try response.validate(expectedUID: uid, format: .float32) == .little)
     }
 
     @Test("Header keys are matched case-insensitively")

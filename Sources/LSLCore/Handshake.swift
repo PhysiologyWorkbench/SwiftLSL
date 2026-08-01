@@ -2,23 +2,23 @@ import Foundation
 
 /// The `LSL:streamfeed` request an inlet opens the data phase with
 /// (SCOPE.md §2.2, `src/data_receiver.cpp:168-190`).
-public struct HandshakeRequest: Sendable {
-    public var protocolVersion: Int
-    public var uid: String
-    public var format: ChannelFormat
-    public var maxBufferLength: Int
-    public var maxChunkLength: Int
-    public var hostname: String
-    public var sourceID: String
-    public var sessionID: String
+package struct HandshakeRequest: Sendable {
+    package var protocolVersion: Int
+    package var uid: String
+    package var format: ChannelFormat
+    package var maxBufferLength: Int
+    package var maxChunkLength: Int
+    package var hostname: String
+    package var sourceID: String
+    package var sessionID: String
 
     /// Advertised byte-swapping throughput. The outlet converts on our behalf only when
     /// it beats this figure (`src/tcp_server.cpp:655-663`), so the default of 0 says
     /// "you convert if you can" — the decoder handles either outcome. `liblsl` sends a
     /// measured value here; benchmarking at connect time buys nothing an inlet needs.
-    public var endianPerformance: Double = 0
+    package var endianPerformance: Double = 0
 
-    public init(
+    package init(
         protocolVersion: Int,
         uid: String,
         format: ChannelFormat,
@@ -39,11 +39,11 @@ public struct HandshakeRequest: Sendable {
     }
 
     /// `min(our maximum, the stream's advertised version)` (`src/data_receiver.cpp:165-167`).
-    public static func proposedVersion(streamVersion: Int) -> Int {
+    package static func proposedVersion(streamVersion: Int) -> Int {
         min(LSLCore.maximumProtocolVersion, streamVersion)
     }
 
-    public func encoded() -> Data {
+    package func encoded() -> Data {
         var lines = ["LSL:streamfeed/\(protocolVersion) \(uid)"]
         lines.append("Native-Byte-Order: \(WireByteOrder.native.rawValue)")
         lines.append("Endian-Performance: \(Int(endianPerformance))")
@@ -62,25 +62,25 @@ public struct HandshakeRequest: Sendable {
 
 /// The outlet's answer to a `LSL:streamfeed` request
 /// (SCOPE.md §2.2, `src/tcp_server.cpp:671-678`).
-public struct HandshakeResponse: Sendable, Hashable {
+package struct HandshakeResponse: Sendable, Hashable {
     /// From the `LSL/<version>` status line.
-    public let version: Int
-    public let statusCode: Int
-    public let statusMessage: String
-    public let uid: String?
+    package let version: Int
+    package let statusCode: Int
+    package let statusMessage: String
+    package let uid: String?
     /// After the `0 → native` remap; not yet checked against the channel format.
-    public let byteOrderValue: Int
-    public let suppressSubnormals: Bool
+    package let byteOrderValue: Int
+    package let suppressSubnormals: Bool
     /// Defaults to 100 when the header is absent, exactly as `liblsl` does — an outlet
     /// that omits it is asking for the 1.00 archive format, which this package refuses
     /// (`src/data_receiver.cpp:160-161`, SCOPE.md §4).
-    public let dataProtocolVersion: Int
+    package let dataProtocolVersion: Int
 
     /// The header block ends here; everything after is test-pattern bytes.
-    public static let terminator = Data("\r\n\r\n".utf8)
+    package static let terminator = Data("\r\n\r\n".utf8)
 
     /// Parses a complete header block, terminator included.
-    public static func parse(_ block: Data) throws -> HandshakeResponse {
+    package static func parse(_ block: Data) throws -> HandshakeResponse {
         let text = String(decoding: block, as: UTF8.self)
         var lines = text.components(separatedBy: "\r\n")
         guard !lines.isEmpty else {
@@ -151,7 +151,7 @@ public struct HandshakeResponse: Sendable, Hashable {
 
     /// Applies every acceptance rule the reference inlet applies, in its order, and
     /// returns the byte order the sample codec must use.
-    public func validate(expectedUID: String, format: ChannelFormat) throws -> WireByteOrder {
+    package func validate(expectedUID: String, format: ChannelFormat) throws -> WireByteOrder {
         guard version / 100 <= LSLCore.maximumProtocolVersion / 100 else {
             throw LSLError.unsupportedProtocolVersion(version)
         }

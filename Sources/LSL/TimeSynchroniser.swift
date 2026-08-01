@@ -22,32 +22,32 @@ public struct ClockOffset: Sendable, Hashable {
 
 /// Measures the offset between our clock and an outlet's, by probe waves over UDP
 /// (SCOPE.md §2.5).
-public struct TimeSynchroniser: Sendable {
-    public struct Configuration: Sendable {
+package struct TimeSynchroniser: Sendable {
+    package struct Configuration: Sendable {
         /// `tuning.TimeProbeCount` (`src/api_config.cpp:316`).
-        public var probeCount = 8
+        package var probeCount = 8
         /// `tuning.TimeProbeInterval`.
-        public var probeInterval: Duration = .milliseconds(64)
+        package var probeInterval: Duration = .milliseconds(64)
         /// `tuning.TimeProbeMaxRTT`; a wave is aggregated
         /// `probeMaxRTT + probeInterval × probeCount` after it starts — 0.64 s by default.
-        public var probeMaxRTT: Duration = .milliseconds(128)
+        package var probeMaxRTT: Duration = .milliseconds(128)
         /// `tuning.TimeUpdateMinProbes`. Fewer replies than this and nothing is published.
-        public var minimumProbes = 6
+        package var minimumProbes = 6
         /// `tuning.TimeUpdateInterval` — how often a wave starts.
-        public var updateInterval: Duration = .seconds(2)
+        package var updateInterval: Duration = .seconds(2)
 
-        public init() {}
+        package init() {}
 
         var aggregationDelay: Duration {
             probeMaxRTT + probeInterval * probeCount
         }
     }
 
-    public let host: String
-    public let port: UInt16
-    public let configuration: Configuration
+    package let host: String
+    package let port: UInt16
+    package let configuration: Configuration
 
-    public init(host: String, port: UInt16, configuration: Configuration = .init()) {
+    package init(host: String, port: UInt16, configuration: Configuration = .init()) {
         self.host = host
         self.port = port
         self.configuration = configuration
@@ -55,7 +55,7 @@ public struct TimeSynchroniser: Sendable {
 
     /// Runs probe waves, yielding one offset per wave that gathered enough replies.
     /// Runs until cancelled unless `waves` is given.
-    public func offsets(waves: Int? = nil) -> AsyncThrowingStream<ClockOffset, any Error> {
+    package func offsets(waves: Int? = nil) -> AsyncThrowingStream<ClockOffset, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {

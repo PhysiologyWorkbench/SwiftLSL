@@ -3,8 +3,12 @@
 /// There is no system API for this (TN3179, FB8711182); it is inferred from
 /// `NWConnection`, and `.unknown` is a legitimate and common answer (SCOPE.md §8.2).
 public enum LocalNetworkAccess: Sendable, Hashable {
+    /// A local-network connection reached the ready state, so the privilege is granted.
     case allowed
+    /// The system reported `.localNetworkDenied` on the probe.
     case denied
+    /// Nothing conclusive: the probe neither connected nor was refused within its
+    /// timeout. Common, and not in itself a fault.
     case unknown
 }
 

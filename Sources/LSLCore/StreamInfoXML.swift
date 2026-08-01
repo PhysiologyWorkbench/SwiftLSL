@@ -15,10 +15,12 @@ public enum StreamInfoXML {
         return try decode(info)
     }
 
+    /// As ``decode(_:)-(Data)``, for a document already decoded to text.
     public static func decode(_ xml: String) throws -> StreamInfo {
         try decode(Data(xml.utf8))
     }
 
+    /// Interprets an already-parsed `<info>` subtree.
     public static func decode(_ info: MetadataElement) throws -> StreamInfo {
         let name = info.childValue("name")
         guard !name.isEmpty else {
@@ -106,6 +108,7 @@ public enum StreamInfoXML {
 
     // MARK: - Generic tree
 
+    /// Parses any XML document into a ``MetadataElement`` tree, with no schema imposed.
     public static func parseTree(_ xml: Data) throws -> MetadataElement {
         let parser = XMLParser(data: xml)
         let builder = TreeBuilder()

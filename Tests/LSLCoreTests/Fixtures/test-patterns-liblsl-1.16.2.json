@@ -1,0 +1,16 @@
+{
+  "libraryVersion": "1.16.2",
+  "capturedOn": "2026-08-01",
+  "channelCount": 5,
+  "provenance": "Captured from a live liblsl outlet over TCP by Tests/python/capture_fixture.py: a real LSL:streamfeed/110 handshake followed by the two test-pattern samples the outlet always sends. Byte order 1234 (the capture host is little-endian); big-endian coverage is by construction in the codec tests and by mock peers at L1.",
+  "responseHeader": "LSL/110 200 OK\r\nUID: 17c62f4f-a0f6-4083-9f65-b333b082c456\r\nByte-Order: 1234\r\nSuppress-Subnormals: 0\r\nData-Protocol-Version: 110",
+  "testPatterns": {
+    "float32": "02c976be9f0c24fe40000080400000a0c00000c0400000e0c00000004102c976be9f0c24fe4000000040000040c0000080400000a0c00000c040",
+    "double64": "02c976be9f0c24fe40000000500000704100000060000070c1000000700000704100000080000070c1000000900000704102c976be9f0c24fe40000000300000704100000040000070c1000000500000704100000060000070c10000007000007041",
+    "string": "02c976be9f0c24fe400102313001032d31310102313201032d31330102313402c976be9f0c24fe400102313001032d31310102313201032d313301023134",
+    "int32": "02c976be9f0c24fe4005000100fafffeff07000100f8fffeff0900010002c976be9f0c24fe4003000100fcfffeff05000100fafffeff07000100",
+    "int16": "02c976be9f0c24fe400501fafe0701f8fe090102c976be9f0c24fe400301fcfe0501fafe0701",
+    "int8": "02c976be9f0c24fe4005fa07f80902c976be9f0c24fe4003fc05fa07",
+    "int64": "02c976be9f0c24fe400500008000000000faffff7fffffffff0700008000000000f8ffff7fffffffff090000800000000002c976be9f0c24fe400300008000000000fcffff7fffffffff0500008000000000faffff7fffffffff0700008000000000"
+  }
+}

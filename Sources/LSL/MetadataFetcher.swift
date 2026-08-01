@@ -7,12 +7,12 @@ import LSLCore
 /// This is a separate TCP round trip on the data port, not part of the data phase: the
 /// outlet writes the whole document and closes, so the reply is delimited by end of stream
 /// rather than by a length.
-public enum MetadataFetcher {
+package enum MetadataFetcher {
     static let request = Data("LSL:fullinfo\r\n".utf8)
 
     /// A `created_at` of 0 means the response was not a valid stream info; the reference
     /// simply reconnects and asks again, so this does too.
-    public static func fetch(
+    package static func fetch(
         host: String,
         port: UInt16,
         timeout: Duration = .seconds(5),

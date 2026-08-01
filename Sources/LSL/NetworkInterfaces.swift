@@ -25,12 +25,17 @@ public struct NetworkInterface: Sendable, Hashable {
         case companionLink = 7
     }
 
+    /// The BSD name, `en0` and such. Diagnostic only — never branch on it.
     public let name: String
+    /// The kernel interface index, which is what `IPV6_MULTICAST_IF` and an IPv6 scope
+    /// id take.
     public let index: UInt32
+    /// This interface's own address, and what `IP_MULTICAST_IF` takes for IPv4.
     public let address: SocketAddress
     /// The interface's directed broadcast address, IPv4 only.
     public let broadcastAddress: SocketAddress?
     public let functionalType: FunctionalType
+    /// The raw `ifa_flags` word: `IFF_UP`, `IFF_MULTICAST`, `IFF_LOOPBACK` and friends.
     public let flags: UInt32
 
     public var isIPv6: Bool { address.isIPv6 }

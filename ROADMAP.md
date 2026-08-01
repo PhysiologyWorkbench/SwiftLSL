@@ -220,7 +220,7 @@ half of SCOPE §12 item 1.
 
 ---
 
-## [ ] Step 9 — Release readiness
+## [x] Step 9 — Release readiness
 
 **Goal.** Something a stranger can depend on.
 
@@ -230,4 +230,35 @@ least two liblsl release versions (current Homebrew release + the oldest version
 found on target devices); hour-scale soak (step 7); CHANGELOG; tag `v0.1.0`.
 
 **Exit criteria.** Matrix green; docs build; tag pushed.
+
+**As done.**
+- `Sources/LSL/LSL.docc/` documents both modules — overview, four worked snippets, and a
+  curated topic list; every public type and every member whose meaning is not in its name
+  carries a doc comment. `Scripts/build-docs.sh` builds it with zero warnings, driving
+  Xcode's `docc` from the symbol graphs rather than adding `swift-docc-plugin` as a
+  dependency (ARCHITECTURE.md, rule 3).
+- The API audit ran against the emitted symbol graph, not by eye. Its result is eleven
+  types moved from `public` to `package` and five new rows in the SCOPE §7 deviations
+  table: the published surface is now exactly §7 plus what that table records.
+- The interop matrix is liblsl **1.17.7** (bundled with pylsl) and **1.16.2** (built from
+  source; the version LabRecorder 1.16.x and most vendor apps ship). Both run the full
+  L1/L2 suite, and golden traces captured from each are committed and replayed by
+  `swift test` — so the matrix survives the dylibs that produced it. The two releases'
+  handshake responses and test patterns are byte-identical for all seven formats.
+- The soak ran 60 minutes at 500 Hz × 8 channels: 1 800 000 pushed, 1 800 000 received,
+  none dropped; resident size 11.7 MiB after the first minute against a 12.6 MiB peak
+  (1.08×). `Tests/python/soak.py` is the repeatable form.
+
+**Carried forward.** Two items, neither blocked on code:
+
+1. **`git tag v0.1.0` is local only.** The repository has no remote, so "tag pushed"
+   cannot be met here. Add a remote and `git push --tags`; nothing else is needed.
+2. **liblsl releases older than 1.16.2 are untested**, and no target-device inventory
+   exists to say whether that matters (SCOPE §12 items 4 and 6). If one turns up,
+   `PYLSL_LIB=… uv run pytest` plus `capture_fixture.py` extends the matrix in minutes —
+   the machinery is version-agnostic. Note that 1.15 and earlier may speak protocol 1.00,
+   which this package refuses by design (SCOPE §4).
+
+Step 8's three carried-forward items are unchanged and still open; they need hardware and
+an Apple account, not work.
 

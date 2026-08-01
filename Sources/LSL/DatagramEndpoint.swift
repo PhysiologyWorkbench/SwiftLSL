@@ -4,11 +4,11 @@ import Foundation
 import LSLCore
 
 /// A received datagram and where it came from.
-public struct Datagram: Sendable {
-    public let payload: Data
-    public let source: SocketAddress
+package struct Datagram: Sendable {
+    package let payload: Data
+    package let source: SocketAddress
     /// Our clock when the datagram was read — the `t3` of a time-sync probe (SCOPE.md §2.5).
-    public let receivedAt: Double
+    package let receivedAt: Double
 }
 
 /// The one BSD-socket wrapper in this package.
@@ -21,11 +21,11 @@ public struct Datagram: Sendable {
 ///
 /// This buys nothing on the privacy front: TN3179 confirms the local-network and multicast
 /// checks live below the API layer and apply to BSD sockets equally (SCOPE.md gap #20).
-public final class DatagramEndpoint: @unchecked Sendable {
+package final class DatagramEndpoint: @unchecked Sendable {
     /// Ports an inlet prefers, before falling back to an OS-assigned one
     /// (`src/socket_utils.cpp:5-25`).
-    public static let defaultBasePort: UInt16 = 16572
-    public static let defaultPortRange: UInt16 = 32
+    package static let defaultBasePort: UInt16 = 16572
+    package static let defaultPortRange: UInt16 = 32
 
     private let handle: Int32
     private let source: DispatchSourceRead
@@ -33,16 +33,16 @@ public final class DatagramEndpoint: @unchecked Sendable {
     private let lock = NSLock()
     private var closed = false
 
-    public let boundPort: UInt16
-    public let family: sa_family_t
+    package let boundPort: UInt16
+    package let family: sa_family_t
 
     /// Every datagram received, in arrival order. Finishes when the endpoint closes.
-    public let datagrams: AsyncStream<Datagram>
+    package let datagrams: AsyncStream<Datagram>
 
     /// Binds a socket, preferring `basePort ..< basePort + portRange` and falling back to
     /// an OS-assigned port. An inlet has no port-range requirement: the port it listens on
     /// travels in the query itself (SCOPE.md gap #17).
-    public init(
+    package init(
         family: sa_family_t = sa_family_t(AF_INET),
         port: UInt16? = nil,
         basePort: UInt16 = DatagramEndpoint.defaultBasePort,
@@ -121,7 +121,7 @@ public final class DatagramEndpoint: @unchecked Sendable {
         close()
     }
 
-    public func close() {
+    package func close() {
         lock.lock()
         guard !closed else {
             lock.unlock()
@@ -134,7 +134,7 @@ public final class DatagramEndpoint: @unchecked Sendable {
         _ = Darwin.close(handle)
     }
 
-    public func send(_ payload: Data, to destination: SocketAddress) throws {
+    package func send(_ payload: Data, to destination: SocketAddress) throws {
         let sent = payload.withUnsafeBytes { bytes in
             destination.withSockaddr { address, length in
                 sendto(handle, bytes.baseAddress, bytes.count, 0, address, length)
@@ -152,7 +152,7 @@ public final class DatagramEndpoint: @unchecked Sendable {
     /// (`src/resolve_attempt_udp.cpp:169-170`). Without this a multi-homed host reaches
     /// only whichever interface holds the default route, and an unscoped `FF02:` group is
     /// not routable at all (SCOPE.md §8.5).
-    public func setMulticastInterface(_ interface: NetworkInterface?) {
+    package func setMulticastInterface(_ interface: NetworkInterface?) {
         if family == sa_family_t(AF_INET6) {
             var index = UInt32(interface?.index ?? 0)
             setsockopt(
@@ -167,7 +167,7 @@ public final class DatagramEndpoint: @unchecked Sendable {
     }
 
     /// Sets the multicast hop limit for subsequent sends (SCOPE.md §2.1's TTL column).
-    public func setMulticastTTL(_ ttl: Int) {
+    package func setMulticastTTL(_ ttl: Int) {
         var value = Int32(ttl)
         if family == sa_family_t(AF_INET6) {
             setsockopt(
