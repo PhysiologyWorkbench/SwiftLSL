@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  swift:
+    name: Swift unit tests (L0)
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build
+      - run: swift test
+
+  python:
+    name: Protocol and interop tests (L1 + L2)
+    runs-on: macos-15
+    timeout-minutes: 30
+    # The mocks own UDP 16572-16603 and assert on every datagram they receive
+    # (TESTING.md), so this suite must have a runner to itself and run serially.
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: uv sync --frozen
+        working-directory: Tests/python
+      # An L2 test that cannot load liblsl skips rather than fails (TESTING.md), so
+      # without this the whole interop suite could vanish into skips and still be green.
+      - name: Check liblsl loads
+        run: uv run --frozen python -c 'import pylsl; print("liblsl", pylsl.library_version())'
+        working-directory: Tests/python
+      # `python -m pytest` rather than `pytest`: the latter can resolve to a pytest
+      # outside the project environment, which then lacks pylsl. `-rs` prints the reason
+      # for every skip, so a suite that quietly stops testing anything is visible.
+      - run: uv run --frozen python -m pytest -v -rs
+        working-directory: Tests/python
+
+  ios:
+    name: iOS build
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -version
+      - name: Build LSL for the iOS simulator
+        run: |
+          xcodebuild build -quiet \
+            -scheme LSL \
+            -destination 'generic/platform=iOS Simulator'
+
+  docs:
+    name: DocC archive
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -version
+      - run: Scripts/build-docs.sh
