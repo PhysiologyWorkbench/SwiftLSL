@@ -209,15 +209,6 @@ SCOPE §8.3): the checklist is the test artefact.
 results recorded in it; iOS multicast entitlement *requested* (approval is external
 and does not block — `KnownPeers` mode needs none).
 
-**Carried forward.** Three parts of this step need hardware or an Apple account this
-build environment does not have, and are recorded rather than silently dropped:
-the two-subnet reachability case (`test_multi_homed_discovery_still_resolves` skips
-on a single-interface host); the manual prompt/denial/re-grant script, which needs a
-bundled, Apple-signed app on a fresh user account — its result table in
-[docs/PLATFORM-CHECKLIST.md](docs/PLATFORM-CHECKLIST.md) is written but unfilled; and
-the iOS multicast entitlement request. Case 3 of that table is also the outstanding
-half of SCOPE §12 item 1.
-
 ---
 
 ## [x] Step 9 — Release readiness
@@ -249,16 +240,25 @@ found on target devices); hour-scale soak (step 7); CHANGELOG; tag `v0.1.0`.
   none dropped; resident size 11.7 MiB after the first minute against a 12.6 MiB peak
   (1.08×). `Tests/python/soak.py` is the repeatable form.
 
-**Carried forward.** Two items, neither blocked on code:
+## Next steps — Carried forward issues
 
-1. **`git tag v0.1.0` is local only.** The repository has no remote, so "tag pushed"
-   cannot be met here. Add a remote and `git push --tags`; nothing else is needed.
+**Carried forward from Step 8.** These need hardware or an Apple account this
+build environment does not have, and are recorded rather than silently dropped:
+1. the two-subnet reachability case (`test_multi_homed_discovery_still_resolves` skips
+   on a single-interface host);
+2. the manual prompt/denial/re-grant script, which needs a bundled, Apple-signed
+   app on a fresh user account — its result table in
+   [docs/PLATFORM-CHECKLIST.md](docs/PLATFORM-CHECKLIST.md) is written but unfilled;
+3. and the iOS multicast entitlement request.
+
+Case 3 of that table is also the outstanding half of SCOPE §12 item 1.
+
+**Carried forward from Step 9.** Two items, neither blocked on code:
+
 2. **liblsl releases older than 1.16.2 are untested**, and no target-device inventory
    exists to say whether that matters (SCOPE §12 items 4 and 6). If one turns up,
    `PYLSL_LIB=… uv run pytest` plus `capture_fixture.py` extends the matrix in minutes —
    the machinery is version-agnostic. Note that 1.15 and earlier may speak protocol 1.00,
    which this package refuses by design (SCOPE §4).
 
-Step 8's three carried-forward items are unchanged and still open; they need hardware and
-an Apple account, not work.
 

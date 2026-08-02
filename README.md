@@ -8,6 +8,9 @@ Pure Swift over Apple system frameworks — no C++/Boost bridge, no third-party
 dependencies in the library targets. Designed to be generic and reusable by any Swift
 project that needs to receive LSL streams; it assumes nothing about its consumers.
 
+Co-authored with Claude, mostly Opus 5 but also Fable 5 at occasions.
+Not thoroughly reviewed by a human.  Caveat emptor.
+
 ## Status
 
 **v0.1.0.** All nine steps of [ROADMAP.md](ROADMAP.md) are complete. Interoperability is
