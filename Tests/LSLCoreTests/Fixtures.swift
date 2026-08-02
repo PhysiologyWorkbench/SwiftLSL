@@ -26,6 +26,14 @@ struct TestPatternFixtures: Decodable, Sendable, CustomTestStringConvertible {
         return decoded.sorted { $0.libraryVersion < $1.libraryVersion }
     }()
 
+    /// The UID as it stands in the captured header, read without the parser under test so
+    /// that a golden assertion on it is not circular. Lower-cased because `liblsl`
+    /// lower-cases header values before comparing (SCOPE.md §2.2).
+    var responseUID: String {
+        let line = responseHeader.components(separatedBy: "\r\n").first { $0.hasPrefix("UID: ") }!
+        return String(line.dropFirst("UID: ".count)).lowercased()
+    }
+
     func bytes(_ format: String) -> Data {
         Data(hex: testPatterns[format]!)
     }

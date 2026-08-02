@@ -1,91 +1,54 @@
 import Foundation
 
-/// The `LSL:streamfeed` request an inlet opens the data phase with
-/// (SCOPE.md §2.2, `src/data_receiver.cpp:168-190`).
-package struct HandshakeRequest: Sendable {
-    package var protocolVersion: Int
-    package var uid: String
-    package var format: ChannelFormat
-    package var maxBufferLength: Int
-    package var maxChunkLength: Int
-    package var hostname: String
-    package var sourceID: String
-    package var sessionID: String
-
-    /// Advertised byte-swapping throughput. The outlet converts on our behalf only when
-    /// it beats this figure (`src/tcp_server.cpp:655-663`), so the default of 0 says
-    /// "you convert if you can" — the decoder handles either outcome. `liblsl` sends a
-    /// measured value here; benchmarking at connect time buys nothing an inlet needs.
-    package var endianPerformance: Double = 0
-
-    package init(
-        protocolVersion: Int,
-        uid: String,
-        format: ChannelFormat,
-        maxBufferLength: Int,
-        maxChunkLength: Int,
-        hostname: String,
-        sourceID: String,
-        sessionID: String
-    ) {
-        self.protocolVersion = protocolVersion
-        self.uid = uid
-        self.format = format
-        self.maxBufferLength = maxBufferLength
-        self.maxChunkLength = maxChunkLength
-        self.hostname = hostname
-        self.sourceID = sourceID
-        self.sessionID = sessionID
-    }
-
-    /// `min(our maximum, the stream's advertised version)` (`src/data_receiver.cpp:165-167`).
-    package static func proposedVersion(streamVersion: Int) -> Int {
-        min(LSLCore.maximumProtocolVersion, streamVersion)
-    }
-
-    package func encoded() -> Data {
-        var lines = ["LSL:streamfeed/\(protocolVersion) \(uid)"]
-        lines.append("Native-Byte-Order: \(WireByteOrder.native.rawValue)")
-        lines.append("Endian-Performance: \(Int(endianPerformance))")
-        lines.append("Has-IEEE754-Floats: 1")
-        lines.append("Supports-Subnormals: \(format.hasSubnormals ? 1 : 0)")
-        lines.append("Value-Size: \(format.valueSize)")
-        lines.append("Data-Protocol-Version: \(protocolVersion)")
-        lines.append("Max-Buffer-Length: \(maxBufferLength)")
-        lines.append("Max-Chunk-Length: \(maxChunkLength)")
-        lines.append("Hostname: \(hostname)")
-        lines.append("Source-Id: \(sourceID)")
-        lines.append("Session-Id: \(sessionID)")
-        return Data((lines.map { $0 + "\r\n" }.joined() + "\r\n").utf8)
-    }
-}
-
-/// The outlet's answer to a `LSL:streamfeed` request
-/// (SCOPE.md §2.2, `src/tcp_server.cpp:671-678`).
-package struct HandshakeResponse: Sendable, Hashable {
-    /// From the `LSL/<version>` status line.
-    package let version: Int
-    package let statusCode: Int
-    package let statusMessage: String
-    package let uid: String?
-    /// After the `0 → native` remap; not yet checked against the channel format.
-    package let byteOrderValue: Int
-    package let suppressSubnormals: Bool
-    /// Defaults to 100 when the header is absent, exactly as `liblsl` does — an outlet
-    /// that omits it is asking for the 1.00 archive format, which this package refuses
-    /// (`src/data_receiver.cpp:160-161`, SCOPE.md §4).
-    package let dataProtocolVersion: Int
-
+/// The data-phase handshake: the `LSL:streamfeed` request and the outlet's answer
+/// (SCOPE.md §2.2).
+package enum Handshake {
     /// The header block ends here; everything after is test-pattern bytes.
     package static let terminator = Data("\r\n\r\n".utf8)
 
-    /// Parses a complete header block, terminator included.
-    package static func parse(_ block: Data) throws -> HandshakeResponse {
+    /// The request an inlet opens the data phase with (`src/data_receiver.cpp:168-190`).
+    ///
+    /// `Endian-Performance` is a policy knob, not a fact: the outlet converts on our behalf
+    /// only when its own measurement beats the figure we declare
+    /// (`src/tcp_server.cpp:655-663`), so 0 says "you convert if you can" — the decoder
+    /// handles either outcome. `liblsl` benchmarks at connect time; that buys an inlet
+    /// nothing.
+    package static func request(
+        for stream: StreamInfo, maxBufferLength: Int, maxChunkLength: Int
+    ) -> Data {
+        // `min(our maximum, the stream's advertised version)` (`src/data_receiver.cpp:165-167`).
+        let version = min(LSLCore.maximumProtocolVersion, stream.protocolVersion)
+        let format = stream.channelFormat
+        let lines = [
+            "LSL:streamfeed/\(version) \(stream.uid)",
+            "Native-Byte-Order: \(WireByteOrder.native.rawValue)",
+            "Endian-Performance: 0",
+            "Has-IEEE754-Floats: 1",
+            "Supports-Subnormals: \(format.hasSubnormals ? 1 : 0)",
+            "Value-Size: \(format.valueSize)",
+            "Data-Protocol-Version: \(version)",
+            "Max-Buffer-Length: \(maxBufferLength)",
+            "Max-Chunk-Length: \(maxChunkLength)",
+            "Hostname: \(stream.hostname)",
+            "Source-Id: \(stream.sourceID)",
+            "Session-Id: \(stream.sessionID)",
+        ]
+        return Data((lines.map { $0 + "\r\n" }.joined() + "\r\n").utf8)
+    }
+
+    /// What the handshake settles, and all the data phase needs from it.
+    package struct Negotiation: Sendable, Hashable {
+        package let byteOrder: WireByteOrder
+        package let suppressSubnormals: Bool
+    }
+
+    /// Parses the outlet's answer (`src/tcp_server.cpp:671-678`) and applies every
+    /// acceptance rule the reference inlet applies, in its order
+    /// (`src/data_receiver.cpp:193-255`). Takes a complete header block, terminator
+    /// included.
+    package static func negotiate(_ block: Data, for stream: StreamInfo) throws -> Negotiation {
         let text = String(decoding: block, as: UTF8.self)
         var lines = text.components(separatedBy: "\r\n")
-        guard !lines.isEmpty else {
-            throw LSLError.malformedMessage("empty handshake response")
-        }
         let statusLine = lines.removeFirst()
 
         // splitandtrim(buf, ' ', false): split on spaces, empties dropped.
@@ -99,6 +62,9 @@ package struct HandshakeResponse: Sendable, Hashable {
         var uid: String?
         var byteOrderValue = WireByteOrder.native.rawValue
         var suppressSubnormals = false
+        // Defaults to 100 when the header is absent, exactly as `liblsl` does — an outlet
+        // that omits it is asking for the 1.00 archive format, which this package refuses
+        // (`src/data_receiver.cpp:160-161`, SCOPE.md §4).
         var dataProtocolVersion = 100
 
         for line in lines {
@@ -117,7 +83,7 @@ package struct HandshakeResponse: Sendable, Hashable {
             switch key {
             case "uid":
                 // The UID is compared case-insensitively as a consequence of the
-                // lower-casing above; keep the parsed form for the caller to check.
+                // lower-casing above.
                 uid = value
             case "byte-order":
                 guard let raw = Int(value) else {
@@ -138,20 +104,6 @@ package struct HandshakeResponse: Sendable, Hashable {
             }
         }
 
-        return HandshakeResponse(
-            version: version,
-            statusCode: statusCode,
-            statusMessage: parts.dropFirst(2).joined(separator: " "),
-            uid: uid,
-            byteOrderValue: byteOrderValue,
-            suppressSubnormals: suppressSubnormals,
-            dataProtocolVersion: dataProtocolVersion
-        )
-    }
-
-    /// Applies every acceptance rule the reference inlet applies, in its order, and
-    /// returns the byte order the sample codec must use.
-    package func validate(expectedUID: String, format: ChannelFormat) throws -> WireByteOrder {
         guard version / 100 <= LSLCore.maximumProtocolVersion / 100 else {
             throw LSLError.unsupportedProtocolVersion(version)
         }
@@ -159,22 +111,27 @@ package struct HandshakeResponse: Sendable, Hashable {
             throw LSLError.lost("the address does not serve this stream (stale resolve)")
         }
         if statusCode >= 400 {
-            throw LSLError.statusError(code: statusCode, message: statusMessage)
+            throw LSLError.statusError(
+                code: statusCode, message: parts.dropFirst(2).joined(separator: " "))
         }
         if statusCode >= 300 {
             throw LSLError.lost("the outlet requested a redirect")
         }
-        if let uid, uid.caseInsensitiveCompare(expectedUID) != .orderedSame {
-            throw LSLError.uidMismatch(expected: expectedUID, received: uid)
+        if let uid, uid.caseInsensitiveCompare(stream.uid) != .orderedSame {
+            throw LSLError.uidMismatch(expected: stream.uid, received: uid)
         }
         guard dataProtocolVersion <= LSLCore.maximumProtocolVersion,
             dataProtocolVersion >= 110
         else {
             throw LSLError.unsupportedProtocolVersion(dataProtocolVersion)
         }
-        guard format.canConvertByteOrder(byteOrderValue) else {
+        guard stream.channelFormat.canConvertByteOrder(byteOrderValue) else {
             throw LSLError.unsupportedByteOrder(byteOrderValue)
         }
-        return WireByteOrder(rawValue: byteOrderValue) ?? .native
+        // A byte order no format can name is only reachable for single-byte values, where
+        // it makes no difference.
+        return Negotiation(
+            byteOrder: WireByteOrder(rawValue: byteOrderValue) ?? .native,
+            suppressSubnormals: suppressSubnormals)
     }
 }

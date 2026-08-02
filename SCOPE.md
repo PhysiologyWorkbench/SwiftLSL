@@ -387,7 +387,7 @@ SwiftLSL/
 │   │   ├── Query.swift              // query-string construction
 │   │   ├── SampleRecord.swift       // 1.10 encode/decode, varlen strings, endian, subnormals
 │   │   ├── TestPattern.swift
-│   │   ├── Handshake.swift          // header format/parse, status-line parse
+│   │   ├── Handshake.swift          // request encoding, response parse + acceptance rules
 │   │   └── LSLError.swift
 │   └── LSL/                         // Network.framework + Darwin sockets + Dispatch
 │       ├── StreamResolver.swift     // UDP discovery, waves, scopes, KnownPeers
@@ -685,7 +685,7 @@ Audited symbol by symbol against the emitted public symbol graph at the v0.1.0 t
 
 | Sketch | As built | Why |
 |---|---|---|
-| — | the wire codecs are `package`, not `public` | `DiscoveryMessage`, `HandshakeRequest`/`Response`, `TimeSyncMessage`, `Query`, `TestPattern`, `ByteWriter`, `SampleCodec.encode`, `DatagramEndpoint`, `DataConnection`, `TimeSynchroniser` and `MetadataFetcher` are needed across target boundaries but promise nothing to a consumer. Swift's `package` access keeps them out of the published surface without weakening the tests, which are in the same package. |
+| — | the wire codecs are `package`, not `public` | `DiscoveryMessage`, `Handshake`, `TimeSyncMessage`, `Query`, `TestPattern`, `ByteWriter`, `SampleCodec.encode`, `DatagramEndpoint`, `DataConnection`, `TimeSynchroniser` and `MetadataFetcher` are needed across target boundaries but promise nothing to a consumer. Swift's `package` access keeps them out of the published surface without weakening the tests, which are in the same package. |
 | — | `LSLCore` publishes an offline-decoding surface | `StreamInfoXML`, `SampleCodec.decode`, `ByteReader`, `SampleRecord`, `TimestampDeducer`, `WireByteOrder`. ARCHITECTURE.md promises `LSLCore` is usable on its own to decode a captured stream; that promise needs these. |
 | `ResolverConfiguration` has six fields | adds `useMulticast`, `basePort`, `portRange`, `multicastMinRTT`, `unicastMinRTT`, `continuousResolveInterval`; `ResolveScope` adds `organization` and `global` | The stated intent is "the same knobs as `lsl_api.cfg`, with the same defaults", and these are in it. `useMulticast` is the exception: it has no `lsl_api.cfg` equivalent and exists because a `KnownPeers`-only resolve is the iOS path that needs no entitlement (§8.1). |
 | `resolve(query: String, …)` | `resolve(query: String? = nil, …)` | `nil` means "every stream in this session", which is otherwise unexpressible: the session predicate is composed by the resolver, not the caller. |
@@ -694,7 +694,7 @@ Audited symbol by symbol against the emitted public symbol graph at the v0.1.0 t
 | `StreamInfo` has no transport fields | adds `v4Address`, `v4DataPort`, `v4ServicePort` and the `v6` triple | The inlet cannot connect without them, and `v4address` is the field the resolver fills in from the reply's source address (§2.1). The address fields are `var` for exactly that reason. |
 | — | `Sample` / `SampleRecord` split | A record off the wire may carry no timestamp (tag 1). Deduction needs the previous timestamp and the nominal rate, so it is a separate, testable step rather than a decoder side effect. |
 | — | `LSLError.incompleteRecord` | The sample decoder is driven from a growing buffer; this is how it asks for more bytes. It never escapes the transport. |
-| — | `HandshakeRequest.endianPerformance`, default 0 | See §2.2: the value is a policy choice, and 0 avoids benchmarking on every connect. |
+| — | `Endian-Performance` is sent as a constant 0 | See §2.2: the value is a policy choice, not a measurement, and 0 avoids benchmarking on every connect. |
 | `XMLElement` | `MetadataElement` | `Foundation.XMLElement` exists on macOS, so any consumer importing both modules would have to qualify every use. |
 | `InletConfiguration.maxBufferedSamples` | `InletConfiguration.maxBuffered: Duration` | The wire field is in samples but `liblsl`'s parameter is in seconds; see §2.2. Expressing it in samples invites a buffer three orders of magnitude too small. |
 | `StreamInlet.info` is the stream it was created with | it is the stream it is *currently* attached to | After a recovery the UID and possibly the address have changed, and a recorder needs the live values. The pre-recovery UID is still recoverable from the offset-reset event. |

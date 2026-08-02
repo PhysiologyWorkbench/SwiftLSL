@@ -82,29 +82,20 @@ package actor DataConnection {
         do {
             try await connection.open(timeout: timeout)
 
-            let proposed = HandshakeRequest.proposedVersion(streamVersion: info.protocolVersion)
-            let request = HandshakeRequest(
-                protocolVersion: proposed,
-                uid: info.uid,
-                format: info.channelFormat,
-                maxBufferLength: configuration.maxBufferLength(for: info),
-                maxChunkLength: configuration.maxChunkLength,
-                hostname: info.hostname,
-                sourceID: info.sourceID,
-                sessionID: info.sessionID
-            )
-            try await connection.send(request.encoded())
+            try await connection.send(
+                Handshake.request(
+                    for: info,
+                    maxBufferLength: configuration.maxBufferLength(for: info),
+                    maxChunkLength: configuration.maxChunkLength))
 
             var buffer = Data()
             let headerEnd = try await readUntil(
-                HandshakeResponse.terminator, on: connection, into: &buffer)
-            let response = try HandshakeResponse.parse(buffer[..<headerEnd])
-            let byteOrder = try response.validate(
-                expectedUID: info.uid, format: info.channelFormat)
+                Handshake.terminator, on: connection, into: &buffer)
+            let negotiated = try Handshake.negotiate(buffer[..<headerEnd], for: info)
 
             let feed = DataConnection(
-                connection: connection, info: info, byteOrder: byteOrder,
-                suppressSubnormals: response.suppressSubnormals,
+                connection: connection, info: info, byteOrder: negotiated.byteOrder,
+                suppressSubnormals: negotiated.suppressSubnormals,
                 leftover: Data(buffer[headerEnd...]))
             try await feed.validateTestPatterns()
             return feed

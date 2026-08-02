@@ -34,7 +34,8 @@ dependencies.
   `LocalNetwork.probe()` so an empty resolve can say whether local network access was
   the cause (SCOPE §8).
 - **`LSLCore`** as a standalone product: the codecs import Foundation only and decode a
-  captured stream with no network, no entitlement and no peer.
+  captured sample stream, given the parameters the handshake negotiated, with no network,
+  no entitlement and no peer.
 - **`lsltool`**, the NDJSON harness the Python test suites drive: `echo`, `resolve`,
   `pull`, `info`, `timesync`, `record`, `netinfo`.
 - DocC documentation for the public surface, built by `Scripts/build-docs.sh`.
