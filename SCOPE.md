@@ -807,6 +807,14 @@ Several items here materially affect the *test methodology*, and one is an outri
   therefore has unconditional access** — CI and integration tests are unblocked, but they
   prove nothing about how the same code behaves inside an app bundle. Keep at least one
   bundled smoke test in the matrix.
+- **The exemption is narrower than it reads: a headless runner is not covered.** On a
+  GitHub Actions macOS runner, `LocalNetwork.probe`'s `NWConnection` to 224.0.0.1 enters
+  `.waiting` with `unsatisfiedReason == .localNetworkDenied`, so the probe answers
+  `.denied` where a desktop terminal answers `.allowed`. Discovery is unaffected: the
+  same runner resolves outlets over multicast and broadcast, because the data path uses
+  BSD sockets and only the probe goes through `Network`. The consequence for the oracle
+  is that a `.denied` verdict means "`Network` was refused", not "this process cannot
+  reach the local network" — treat it as advisory outside an app bundle.
 - The daemon exemption **does not extend to `launchd` agents**. An agent needs
   `AssociatedBundleIdentifiers` in its plist so macOS can attribute the access.
 - **There is no way to reset the privilege on macOS** (FB14944392). Re-testing the
