@@ -130,10 +130,16 @@ cd Tests/python && uv run python soak.py --minutes 60
 
 From SCOPE.md §8.3, consequences worth knowing before trusting a green run:
 
-- Terminal-launched processes (including `swift test`, pytest, and everything they
-  spawn) are **automatically granted** local-network access on macOS. CI therefore
-  needs no privacy configuration — but by the same token it exercises none of the
-  denial paths. Those are covered by the manual checklist in roadmap step 8.
+- Terminal-launched processes on a desktop (including `swift test`, pytest, and
+  everything they spawn) are **automatically granted** local-network access on macOS.
+  CI therefore needs no privacy configuration — but by the same token it exercises
+  none of the denial paths. Those are covered by the manual checklist in roadmap step 8.
+- A **headless** session has no such grant, and there `LocalNetwork.probe` reports
+  `.denied`: on a GitHub Actions macOS runner the probe's `NWConnection` to 224.0.0.1
+  enters `.waiting` with `unsatisfiedReason == .localNetworkDenied`. Discovery itself
+  is unaffected — the same runner passes the multicast and broadcast L2 tests, because
+  the data path uses BSD sockets rather than `Network` (SCOPE.md §8.3). The probe's
+  strict assertion is therefore skipped when `CI` is set.
 - The iOS simulator does not implement local-network privacy at all; nothing in this
   harness makes claims about iOS devices.
 - All L1/L2 traffic is loopback; multicast tests use `ResolveScope` machine/link on

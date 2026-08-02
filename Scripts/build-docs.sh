@@ -16,6 +16,10 @@ cd "$root"
 graphs=.build/documentation/symbol-graphs
 archive=.build/documentation/SwiftLSL.doccarchive
 
+# dump-symbol-graph extracts every module in the package, test targets included, and
+# fails outright if one cannot be loaded. On a clean checkout the test modules have not
+# been built, so they must be built first even though their graphs are then discarded.
+swift build --build-tests
 swift package dump-symbol-graph --minimum-access-level public >/dev/null
 
 rm -rf "$graphs" "$archive"
