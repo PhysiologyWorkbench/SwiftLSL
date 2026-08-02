@@ -1,5 +1,7 @@
 # SwiftLSL
 
+[![CI](https://github.com/PhysiologyWorkbench/SwiftLSL/actions/workflows/ci.yml/badge.svg)](https://github.com/PhysiologyWorkbench/SwiftLSL/actions/workflows/ci.yml)
+
 A minimal, native-Swift implementation of the Lab Streaming Layer (LSL) protocol,
 **inlet (recorder) side only**: stream discovery, subscription, sample reception,
 metadata retrieval, and time synchronisation. No outlet (publishing) support.

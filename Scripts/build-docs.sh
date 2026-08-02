@@ -29,6 +29,7 @@ xcrun docc convert Sources/LSL/LSL.docc \
     --fallback-display-name SwiftLSL \
     --fallback-bundle-identifier fi.iki.pnr.SwiftLSL \
     --additional-symbol-graph-dir "$graphs" \
+    --warnings-as-errors \
     --output-path "$archive"
 
 echo "built $archive"
