@@ -70,6 +70,19 @@ struct InletTests {
         settings.maxBuffered = .zero
         #expect(settings.maxBufferLength(for: regular) == 1, "never request a zero buffer")
     }
+
+    @Test("An absurd advertised rate is clamped, not trapped")
+    func bufferLengthClamped() {
+        // The rate is peer-supplied and only checked as non-negative; the
+        // seconds-to-samples product must not reach `Int(_:)`'s trap.
+        let settings = InletConfiguration()
+        for rate in [1e300, .infinity] {
+            let hostile = StreamInfo(
+                name: "S", channelCount: 1, nominalSampleRate: rate,
+                channelFormat: .float32, uid: "u")
+            #expect(settings.maxBufferLength(for: hostile) == Int(1e18))
+        }
+    }
 }
 
 @Suite("Waiter set")

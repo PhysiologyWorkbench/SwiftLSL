@@ -176,6 +176,18 @@ struct StreamInfoXMLTests {
         #expect(throws: (any Error).self) { _ = try StreamInfoXML.decode(broken) }
     }
 
+    @Test("An out-of-range <version> is rejected, not trapped", arguments: [
+        "1e19", "inf", "nan", "-1",
+    ])
+    func versionRange(value: String) {
+        // Peer-supplied: `Int(versionValue * 100)` would abort the process on an
+        // oversized finite value or on infinity.
+        let broken = Self.fullInfo.replacingOccurrences(
+            of: "<version>1.100000000000000</version>",
+            with: "<version>\(value)</version>")
+        #expect(throws: (any Error).self) { _ = try StreamInfoXML.decode(broken) }
+    }
+
     @Test("A sub-1.10 outlet is identifiable before connecting")
     func oldProtocolVersionVisible() throws {
         // The whole reason protocol 1.00 can be refused early (SCOPE.md §4).

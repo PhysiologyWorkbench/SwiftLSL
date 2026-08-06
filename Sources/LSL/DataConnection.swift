@@ -28,7 +28,10 @@ public struct InletConfiguration: Sendable {
         let samples = info.nominalSampleRate > 0
             ? info.nominalSampleRate * seconds
             : seconds * 100
-        return max(1, Int(samples))
+        // The rate is peer-supplied and validated only as non-negative, so the
+        // product must be clamped before narrowing: `Int(_: Double)` traps outside
+        // `Int`'s range (and `Double(Int.max)` itself rounds up past it).
+        return max(1, Int(min(samples, 1e18)))
     }
 }
 

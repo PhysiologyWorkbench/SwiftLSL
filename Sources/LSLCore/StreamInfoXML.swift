@@ -38,8 +38,11 @@ public enum StreamInfoXML {
         let sampleRate = try nonNegativeDouble(info, "nominal_srate")
 
         // <version> is written as version/100 and read back as stod(...)*100, truncated
-        // (`src/stream_info_impl.cpp:132`). 1.1 becomes 110.
-        guard let versionValue = Double(info.childValue("version")), versionValue > 0 else {
+        // (`src/stream_info_impl.cpp:132`). 1.1 becomes 110. Peer-supplied, so it must
+        // be bounded before the narrowing below: `Int(_: Double)` traps outside `Int`'s
+        // range, and "inf" parses as a positive `Double`.
+        guard let versionValue = Double(info.childValue("version")),
+              versionValue > 0, versionValue <= 1e6 else {
             throw LSLError.invalidStreamInfo("invalid <version>")
         }
         let desc = info["desc"]
