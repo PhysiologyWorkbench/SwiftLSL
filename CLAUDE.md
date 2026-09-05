@@ -89,3 +89,11 @@ Work done from here updates the cards there:
 - **Ask before adding a card.** New work appearing mid-task is normal and worth
   capturing, but what belongs on the owner's queue is the owner's judgement,
   not the agent's.
+
+## The architecture gate
+
+Family-wide architecture rules run as a pre-push hook in every repo. After
+any structural change here — imports added, public types added, isolation
+attributes changed — run
+`swift test --package-path ../PWB/tools/arch/ArchRules`; fix or get a ruling,
+never bypass silently. Setup and detail: `../PWB/TOOLING.md`.
